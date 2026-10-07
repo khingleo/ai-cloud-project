@@ -4,8 +4,7 @@
  * Provider: NVIDIA NIM (integrate.api.nvidia.com) — SINGLE PROVIDER
  * Model: nvidia/nemotron-3.5-lightning-30b-a3b
  *
- * Authentication:
- *   VITE_NVIDIA_API_KEY from .env.local
+ * Authentication is handled by the server-side API proxy.
  *
  * Features:
  *   - Streaming via Server-Sent Events (SSE)
@@ -14,19 +13,9 @@
  *   - Non-streaming legacy compat wrapper
  */
 
-function sanitizeKey(raw: string | undefined): string {
-  if (!raw) return '';
-  return String(raw).trim();
-}
+import { supabase } from '../lib/supabase';
 
-const ENV_NVIDIA = sanitizeKey(import.meta.env.VITE_NVIDIA_API_KEY);
-const NVIDIA_API_KEY = ENV_NVIDIA;
-const NVIDIA_PROXIED_PATH = '/api/nvidia/v1/chat/completions';
-const NVIDIA_DIRECT_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const NVIDIA_API_URL: string =
-  typeof window !== 'undefined' && typeof window.location !== 'undefined'
-    ? NVIDIA_PROXIED_PATH
-    : NVIDIA_DIRECT_URL;
+const NVIDIA_API_URL = '/api/nvidia/v1/chat/completions';
 const NVIDIA_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b';
 const NVIDIA_MODEL_LABEL = 'NVIDIA · Nemotron 3.5 Lightning 30B';
 
@@ -115,14 +104,14 @@ function buildBody(messages: GroqMessage[], stream: boolean): string {
   });
 }
 
-const BASE_HEADERS: Record<string, string> = {
-  'Content-Type': 'application/json',
-};
+async function getHeaders(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw new Error(`Could not verify your session: ${error.message}`);
+  if (!data.session) throw new Error('Sign in to use the AI assistant.');
 
-function getHeaders(): Record<string, string> {
   return {
-    ...BASE_HEADERS,
-    'Authorization': `Bearer ${NVIDIA_API_KEY}`,
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${data.session.access_token}`,
   };
 }
 
@@ -130,19 +119,10 @@ function getHeaders(): Record<string, string> {
  * Non-streaming API — kept for backward compatibility.
  */
 export async function callGroqAI(conversationHistory: GroqMessage[]): Promise<GroqChatResponse> {
-  if (!NVIDIA_API_KEY || NVIDIA_API_KEY.length < 6) {
-    return {
-      text: '',
-      error: 'AI service error: NVIDIA API key is empty or invalid.',
-      provider: AI_PROVIDERS.NVIDIA,
-      model: NVIDIA_MODEL,
-    };
-  }
-
   try {
     const res = await fetch(NVIDIA_API_URL, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: buildBody(conversationHistory, false),
     });
 
@@ -178,16 +158,6 @@ export async function* callGroqAIStreaming(
   | { type: 'complete'; text: string; reasoning: string; provider: AIProvider; model: string }
   | { type: 'error'; error: string; provider: AIProvider; model: string }
 > {
-  if (!NVIDIA_API_KEY || NVIDIA_API_KEY.length < 6) {
-    yield {
-      type: 'error',
-      error: 'AI service error: NVIDIA API key is empty or invalid.',
-      provider: AI_PROVIDERS.NVIDIA,
-      model: NVIDIA_MODEL,
-    };
-    return;
-  }
-
   yield {
     type: 'provider',
     provider: AI_PROVIDERS.NVIDIA,
@@ -198,7 +168,7 @@ export async function* callGroqAIStreaming(
   try {
     const res = await fetch(NVIDIA_API_URL, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: await getHeaders(),
       body: buildBody(conversationHistory, true),
     });
 
