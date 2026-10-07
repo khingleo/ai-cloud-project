@@ -37,7 +37,7 @@ Supabase Auth generates and verifies passwordless email OTPs for sign-in and sig
 
 ### Setup
 
-1. Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `NVIDIA_API_KEY` in the ignored `.env.local` file. Use the Supabase publishable/anon key, never the service-role key. Get an NVIDIA NIM API key from [build.nvidia.com](https://build.nvidia.com/deepseek-ai/deepseek-v4.1-flash). The key is used only by the local proxy and server-side Vercel function; never give it a `VITE_` prefix or commit it.
+1. Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `NVIDIA_API_KEY` in the ignored `.env.local` file. Use the Supabase publishable/anon key, never the service-role key. Get an NVIDIA NIM API key from [NVIDIA Nemotron 3.5 Lightning](https://build.nvidia.com/nvidia/nemotron-3.5-lightning-30b-a3b). The key is used only by the local proxy and server-side Vercel function; never give it a `VITE_` prefix or commit it.
 2. Verify your sending domain in Resend and configure its DNS records.
 3. In Supabase, open **Authentication → Email → SMTP Settings**, enable custom SMTP, and enter host `smtp.resend.com`, port `465`, username `resend`, a new Resend sending-only API key as the SMTP password, and a sender address on the verified domain.
 4. In **Authentication → Email Templates**, set the confirmation and OTP templates to display `{{ .Token }}`. Keep email confirmations enabled.

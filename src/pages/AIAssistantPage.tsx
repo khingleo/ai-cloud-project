@@ -43,7 +43,7 @@ export const AIAssistantPage: React.FC = () => {
     {
       id: 'msg-welcome',
       sender: 'assistant',
-      text: `Hello 👋 I'm your MTN Ghana Enterprise AI Assistant, powered by ${providerInfo.label}.\n\nAsk me anything — I'll stream real AI answers as they are generated.`,
+      text: `Hello 👋 I'm your MTN Ghana Enterprise AI Assistant, powered by ${providerInfo.label}.\n\nAsk me anything and I'll help you find an answer.`,
       timestamp: 'Just now',
     },
   ]);
@@ -159,7 +159,7 @@ export const AIAssistantPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
               <Bot className="w-4 h-4 text-mtn-yellow" />
-              <span>DeepSeek V4.1 Flash · NVIDIA</span>
+              <span>{providerInfo.label}</span>
             </div>
             <button
               onClick={handleClearChat}

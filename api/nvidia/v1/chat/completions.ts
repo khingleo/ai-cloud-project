@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const NVIDIA_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
+const NVIDIA_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b';
 
 interface ChatRequest extends IncomingMessage {
   body?: unknown;

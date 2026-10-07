@@ -2,7 +2,7 @@
  * MTN ENTERPRISE HUB - AI CHAT SERVICE
  *
  * Provider: NVIDIA NIM — SINGLE PROVIDER
- * Model: deepseek-ai/deepseek-v4.1-flash
+ * Model: nvidia/nemotron-3.5-lightning-30b-a3b
  *
  * Authentication is handled by the server-side API proxy.
  *
@@ -15,8 +15,8 @@
 import { supabase } from '../lib/supabase';
 
 const NVIDIA_API_URL = '/api/nvidia/v1/chat/completions';
-const NVIDIA_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
-const NVIDIA_MODEL_LABEL = 'NVIDIA · DeepSeek V4.1 Flash';
+const NVIDIA_MODEL = 'nvidia/nemotron-3.5-lightning-30b-a3b';
+const NVIDIA_MODEL_LABEL = 'NVIDIA · Nemotron 3.5 Lightning';
 
 export const AI_PROVIDERS = {
   NVIDIA: 'nvidia',
@@ -94,10 +94,9 @@ function buildBody(messages: GroqMessage[], stream: boolean): string {
       { role: 'system' as const, content: SYSTEM_PROMPT },
       ...messages,
     ],
-    temperature: 0.6,
-    top_p: 0.9,
+    temperature: 1.0,
+    top_p: 0.95,
     max_tokens: 2048,
-    reasoning_budget: 512,
     chat_template_kwargs: { enable_thinking: false },
     stream,
   });
