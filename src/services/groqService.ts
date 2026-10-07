@@ -144,6 +144,7 @@ export async function callGroqAI(conversationHistory: GroqMessage[]): Promise<Gr
       method: 'POST',
       headers: await getHeaders(),
       body: buildBody(conversationHistory, false),
+      signal: AbortSignal.timeout(90_000),
     });
 
     if (!res.ok) {
@@ -189,6 +190,7 @@ export async function* callGroqAIStreaming(
       method: 'POST',
       headers: await getHeaders(),
       body: buildBody(conversationHistory, true),
+      signal: AbortSignal.timeout(90_000),
     });
 
     if (!res.ok) {
@@ -223,7 +225,13 @@ export async function* callGroqAIStreaming(
         buffer = buffer.slice(idx + 1);
         if (!line) continue;
         if (line.startsWith('data:')) line = line.slice(5).trim();
-        if (!line || line === '[DONE]') continue;
+        if (!line) continue;
+        if (line === '[DONE]') {
+          done = true;
+          buffer = '';
+          await reader.cancel();
+          break;
+        }
         let parsed: any = null;
         try { parsed = JSON.parse(line); } catch { continue; }
         const delta = parsed?.choices?.[0]?.delta;
