@@ -86,35 +86,14 @@ export default async function handler(req: ChatRequest, res: ServerResponse) {
         Authorization: `Bearer ${nvidiaKey}`,
       },
       body: JSON.stringify({ ...requestBody, model: NVIDIA_MODEL }),
+      signal: AbortSignal.timeout(60_000),
     });
 
-    if (!upstream.ok) {
-      const errorBody = await upstream.text();
-      res.statusCode = upstream.status;
-      res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
-      res.end(errorBody);
-      return;
-    }
-
+    const responseBody = await upstream.text();
     res.statusCode = upstream.status;
     res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('X-Accel-Buffering', 'no');
-
-    if (!upstream.body) {
-      res.end();
-      return;
-    }
-
-    for await (const chunk of upstream.body) {
-      if (!res.write(chunk)) {
-        await new Promise<void>((resolve, reject) => {
-          res.once('drain', resolve);
-          res.once('error', reject);
-        });
-      }
-    }
-    res.end();
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(responseBody);
   } catch (error) {
     console.error('AI proxy request failed:', error);
     if (res.headersSent) {

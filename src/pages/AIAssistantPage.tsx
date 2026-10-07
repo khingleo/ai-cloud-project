@@ -132,7 +132,7 @@ export const AIAssistantPage: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PageHeader
         title="AI Assistant"
-        subtitle={`Powered by ${providerInfo.label} · Streaming live responses`}
+        subtitle={`Powered by ${providerInfo.label} · Live responses`}
         breadcrumbs={[{ label: 'AI Assistant' }]}
       />
 
@@ -151,7 +151,7 @@ export const AIAssistantPage: React.FC = () => {
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
-                {providerInfo.label} · MTN Enterprise Context · Streaming
+                {providerInfo.label} · MTN Enterprise Context
               </p>
             </div>
           </div>

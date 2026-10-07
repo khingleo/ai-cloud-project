@@ -170,7 +170,7 @@ export const AIChatWidget: React.FC = () => {
                     <Zap className="w-2 h-2" /> NVIDIA
                   </span>
                 </h4>
-                <p className="text-[10px] text-slate-400">{providerInfo.label} · Streaming</p>
+                <p className="text-[10px] text-slate-400">{providerInfo.label}</p>
               </div>
             </div>
 

@@ -7,8 +7,7 @@
  * Authentication is handled by the server-side API proxy.
  *
  * Features:
- *   - Streaming via Server-Sent Events (SSE)
- *   - Reasoning / thinking tokens (reasoning_content delta)
+ *   - Bounded JSON requests to the server-side API proxy
  *   - Bold markdown rendering in the UI
  *   - Non-streaming legacy compat wrapper
  */
@@ -144,7 +143,7 @@ export async function callGroqAI(conversationHistory: GroqMessage[]): Promise<Gr
       method: 'POST',
       headers: await getHeaders(),
       body: buildBody(conversationHistory, false),
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(70_000),
     });
 
     if (!res.ok) {
@@ -189,8 +188,8 @@ export async function* callGroqAIStreaming(
     const res = await fetch(NVIDIA_API_URL, {
       method: 'POST',
       headers: await getHeaders(),
-      body: buildBody(conversationHistory, true),
-      signal: AbortSignal.timeout(90_000),
+      body: buildBody(conversationHistory, false),
+      signal: AbortSignal.timeout(70_000),
     });
 
     if (!res.ok) {
@@ -199,76 +198,24 @@ export async function* callGroqAIStreaming(
       return;
     }
 
-    if (!res.body) {
-      const fallback = await res.json().catch(() => ({}));
-      const content = fallback?.choices?.[0]?.message?.content ?? '';
-      if (content) yield { type: 'content', delta: content };
-      yield { type: 'complete', text: content, reasoning: '', provider: AI_PROVIDERS.NVIDIA, model: NVIDIA_MODEL };
+    const payload = await res.json();
+    const content = payload?.choices?.[0]?.message?.content;
+    if (typeof content !== 'string') {
+      yield {
+        type: 'error',
+        error: 'The AI service returned an empty or invalid response.',
+        provider: AI_PROVIDERS.NVIDIA,
+        model: NVIDIA_MODEL,
+      };
       return;
     }
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-    let buffer = '';
-    let fullText = '';
-    let fullReasoning = '';
-    let done = false;
-
-    while (!done) {
-      const { value, done: rd } = await reader.read();
-      done = rd;
-      if (value) buffer += decoder.decode(value, { stream: true });
-
-      let idx: number;
-      while ((idx = buffer.indexOf('\n')) !== -1) {
-        let line = buffer.slice(0, idx).trim();
-        buffer = buffer.slice(idx + 1);
-        if (!line) continue;
-        if (line.startsWith('data:')) line = line.slice(5).trim();
-        if (!line) continue;
-        if (line === '[DONE]') {
-          done = true;
-          buffer = '';
-          await reader.cancel();
-          break;
-        }
-        let parsed: any = null;
-        try { parsed = JSON.parse(line); } catch { continue; }
-        const delta = parsed?.choices?.[0]?.delta;
-        if (!delta) continue;
-        const contentDelta = delta.content ?? '';
-        const reasoningDelta = delta.reasoning_content ?? '';
-        if (reasoningDelta) {
-          fullReasoning += reasoningDelta;
-        }
-        if (contentDelta) {
-          fullText += contentDelta;
-          yield { type: 'content', delta: contentDelta };
-        }
-      }
-    }
-
-    if (buffer.trim()) {
-      let line = buffer.trim();
-      if (line.startsWith('data:')) line = line.slice(5).trim();
-      if (line && line !== '[DONE]') {
-        try {
-          const parsed = JSON.parse(line);
-          const delta = parsed?.choices?.[0]?.delta;
-          if (delta) {
-            const contentDelta = delta.content ?? '';
-            const reasoningDelta = delta.reasoning_content ?? '';
-            if (reasoningDelta) fullReasoning += reasoningDelta;
-            if (contentDelta) { fullText += contentDelta; yield { type: 'content', delta: contentDelta }; }
-          }
-        } catch {}
-      }
-    }
+    if (content) yield { type: 'content', delta: content };
 
     yield {
       type: 'complete',
-      text: fullText,
-      reasoning: fullReasoning,
+      text: content,
+      reasoning: '',
       provider: AI_PROVIDERS.NVIDIA,
       model: NVIDIA_MODEL,
     };
