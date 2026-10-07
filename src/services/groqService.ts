@@ -104,6 +104,26 @@ function buildBody(messages: GroqMessage[], stream: boolean): string {
   });
 }
 
+async function getApiErrorMessage(response: Response): Promise<string> {
+  try {
+    const payload: unknown = await response.json();
+    if (payload && typeof payload === 'object') {
+      const body = payload as Record<string, unknown>;
+      const error = body.error;
+      if (error && typeof error === 'object') {
+        const message = (error as Record<string, unknown>).message;
+        if (typeof message === 'string' && message) return message;
+      }
+      if (typeof body.detail === 'string' && body.detail) return body.detail;
+      if (typeof body.title === 'string' && body.title) return body.title;
+    }
+  } catch {
+    // Use the HTTP status when the upstream response is not JSON.
+  }
+
+  return `API error ${response.status}`;
+}
+
 async function getHeaders(): Promise<Record<string, string>> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw new Error(`Could not verify your session: ${error.message}`);
@@ -127,8 +147,7 @@ export async function callGroqAI(conversationHistory: GroqMessage[]): Promise<Gr
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const msg = (data as any)?.error?.message || `API error ${res.status}`;
+      const msg = await getApiErrorMessage(res);
       return { text: '', error: msg, provider: AI_PROVIDERS.NVIDIA, model: NVIDIA_MODEL };
     }
 
@@ -173,8 +192,7 @@ export async function* callGroqAIStreaming(
     });
 
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      const msg = (data as any)?.error?.message || `API error ${res.status}`;
+      const msg = await getApiErrorMessage(res);
       yield { type: 'error', error: msg, provider: AI_PROVIDERS.NVIDIA, model: NVIDIA_MODEL };
       return;
     }
