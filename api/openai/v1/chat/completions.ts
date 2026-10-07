@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-const OPENCODE_URL = 'https://opencode.ai/zen/v1/chat/completions';
-const OPENCODE_MODEL = 'deepseek-v4.1-flash';
+const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_MODEL = 'gpt-4o-mini';
 
 interface ChatRequest extends IncomingMessage {
   body?: unknown;
@@ -30,7 +30,7 @@ export default async function handler(req: ChatRequest, res: ServerResponse) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL?.replace(/\/+$/, '');
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
     || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const opencodeKey = process.env.OPENCODE_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error('AI proxy is missing Supabase authentication configuration.');
@@ -38,8 +38,8 @@ export default async function handler(req: ChatRequest, res: ServerResponse) {
     return;
   }
 
-  if (!opencodeKey) {
-    console.error('AI proxy is missing OPENCODE_API_KEY.');
+  if (!openaiKey) {
+    console.error('AI proxy is missing OPENAI_API_KEY.');
     sendJson(res, 503, 'The AI assistant is not configured yet.');
     return;
   }
@@ -79,13 +79,13 @@ export default async function handler(req: ChatRequest, res: ServerResponse) {
       return;
     }
 
-    const upstream = await fetch(OPENCODE_URL, {
+    const upstream = await fetch(OPENAI_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${opencodeKey}`,
+        Authorization: `Bearer ${openaiKey}`,
       },
-      body: JSON.stringify({ ...requestBody, model: OPENCODE_MODEL }),
+      body: JSON.stringify({ ...requestBody, model: OPENAI_MODEL }),
     });
 
     if (!upstream.ok) {

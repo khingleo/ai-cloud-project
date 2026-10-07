@@ -9,15 +9,15 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
-        '/api/opencode': {
-          target: 'https://opencode.ai',
+        '/api/openai': {
+          target: 'https://api.openai.com',
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/opencode/, '/zen'),
+          rewrite: (path) => path.replace(/^\/api\/openai/, '/v1'),
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => {
-              if (env.OPENCODE_API_KEY) {
-                proxyReq.setHeader('Authorization', `Bearer ${env.OPENCODE_API_KEY}`)
+              if (env.OPENAI_API_KEY) {
+                proxyReq.setHeader('Authorization', `Bearer ${env.OPENAI_API_KEY}`)
               }
             })
           },

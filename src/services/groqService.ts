@@ -1,8 +1,8 @@
 /**
  * MTN ENTERPRISE HUB - AI CHAT SERVICE
  *
- * Provider: OpenCode Zen — SINGLE PROVIDER
- * Model: deepseek-v4.1-flash
+ * Provider: OpenAI — SINGLE PROVIDER
+ * Model: gpt-4o-mini
  *
  * Authentication is handled by the server-side API proxy.
  *
@@ -15,18 +15,18 @@
 
 import { supabase } from '../lib/supabase';
 
-const OPENCODE_API_URL = '/api/opencode/v1/chat/completions';
-const OPENCODE_MODEL = 'deepseek-v4.1-flash';
-const OPENCODE_MODEL_LABEL = 'OpenCode Zen · DeepSeek V4.1 Flash';
+const OPENAI_API_URL = '/api/openai/v1/chat/completions';
+const OPENAI_MODEL = 'gpt-4o-mini';
+const OPENAI_MODEL_LABEL = 'OpenAI · GPT-4o mini';
 
 export const AI_PROVIDERS = {
-  OPENCODE: 'opencode',
+  OPENAI: 'openai',
 } as const;
 
 export type AIProvider = typeof AI_PROVIDERS[keyof typeof AI_PROVIDERS];
 
 export const AI_MODEL_LABELS: Record<AIProvider, string> = {
-  [AI_PROVIDERS.OPENCODE]: OPENCODE_MODEL_LABEL,
+  [AI_PROVIDERS.OPENAI]: OPENAI_MODEL_LABEL,
 };
 
 export interface GroqMessage {
@@ -82,15 +82,15 @@ TONE: Professional, decisive, action-oriented. Use bullet points for lists. Neve
 
 export function getActiveProviderInfo(): { provider: AIProvider; label: string; model: string } {
   return {
-    provider: AI_PROVIDERS.OPENCODE,
-    label: OPENCODE_MODEL_LABEL,
-    model: OPENCODE_MODEL,
+    provider: AI_PROVIDERS.OPENAI,
+    label: OPENAI_MODEL_LABEL,
+    model: OPENAI_MODEL,
   };
 }
 
 function buildBody(messages: GroqMessage[], stream: boolean): string {
   return JSON.stringify({
-    model: OPENCODE_MODEL,
+    model: OPENAI_MODEL,
     messages: [
       { role: 'system' as const, content: SYSTEM_PROMPT },
       ...messages,
@@ -98,8 +98,6 @@ function buildBody(messages: GroqMessage[], stream: boolean): string {
     temperature: 0.6,
     top_p: 0.9,
     max_tokens: 2048,
-    reasoning_budget: 512,
-    chat_template_kwargs: { enable_thinking: false },
     stream,
   });
 }
@@ -140,7 +138,7 @@ async function getHeaders(): Promise<Record<string, string>> {
  */
 export async function callGroqAI(conversationHistory: GroqMessage[]): Promise<GroqChatResponse> {
   try {
-    const res = await fetch(OPENCODE_API_URL, {
+    const res = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: await getHeaders(),
       body: buildBody(conversationHistory, false),
@@ -148,18 +146,18 @@ export async function callGroqAI(conversationHistory: GroqMessage[]): Promise<Gr
 
     if (!res.ok) {
       const msg = await getApiErrorMessage(res);
-      return { text: '', error: msg, provider: AI_PROVIDERS.OPENCODE, model: OPENCODE_MODEL };
+      return { text: '', error: msg, provider: AI_PROVIDERS.OPENAI, model: OPENAI_MODEL };
     }
 
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content ?? '';
-    return { text: content, provider: AI_PROVIDERS.OPENCODE, model: OPENCODE_MODEL };
+    return { text: content, provider: AI_PROVIDERS.OPENAI, model: OPENAI_MODEL };
   } catch (err: any) {
     return {
       text: '',
-      error: err?.message || 'Network error — could not reach OpenCode Zen. Check your internet connection.',
-      provider: AI_PROVIDERS.OPENCODE,
-      model: OPENCODE_MODEL,
+      error: err?.message || 'Network error — could not reach OpenAI. Check your internet connection.',
+      provider: AI_PROVIDERS.OPENAI,
+      model: OPENAI_MODEL,
     };
   }
 }
@@ -179,13 +177,13 @@ export async function* callGroqAIStreaming(
 > {
   yield {
     type: 'provider',
-    provider: AI_PROVIDERS.OPENCODE,
-    label: OPENCODE_MODEL_LABEL,
-    model: OPENCODE_MODEL,
+    provider: AI_PROVIDERS.OPENAI,
+    label: OPENAI_MODEL_LABEL,
+    model: OPENAI_MODEL,
   };
 
   try {
-    const res = await fetch(OPENCODE_API_URL, {
+    const res = await fetch(OPENAI_API_URL, {
       method: 'POST',
       headers: await getHeaders(),
       body: buildBody(conversationHistory, true),
@@ -193,7 +191,7 @@ export async function* callGroqAIStreaming(
 
     if (!res.ok) {
       const msg = await getApiErrorMessage(res);
-      yield { type: 'error', error: msg, provider: AI_PROVIDERS.OPENCODE, model: OPENCODE_MODEL };
+      yield { type: 'error', error: msg, provider: AI_PROVIDERS.OPENAI, model: OPENAI_MODEL };
       return;
     }
 
@@ -201,7 +199,7 @@ export async function* callGroqAIStreaming(
       const fallback = await res.json().catch(() => ({}));
       const content = fallback?.choices?.[0]?.message?.content ?? '';
       if (content) yield { type: 'content', delta: content };
-      yield { type: 'complete', text: content, reasoning: '', provider: AI_PROVIDERS.OPENCODE, model: OPENCODE_MODEL };
+      yield { type: 'complete', text: content, reasoning: '', provider: AI_PROVIDERS.OPENAI, model: OPENAI_MODEL };
       return;
     }
 
@@ -261,15 +259,15 @@ export async function* callGroqAIStreaming(
       type: 'complete',
       text: fullText,
       reasoning: fullReasoning,
-      provider: AI_PROVIDERS.OPENCODE,
-      model: OPENCODE_MODEL,
+      provider: AI_PROVIDERS.OPENAI,
+      model: OPENAI_MODEL,
     };
   } catch (err: any) {
     yield {
       type: 'error',
-      error: err?.message || 'Network error — could not reach OpenCode Zen. Check your internet connection.',
-      provider: AI_PROVIDERS.OPENCODE,
-      model: OPENCODE_MODEL,
+      error: err?.message || 'Network error — could not reach OpenAI. Check your internet connection.',
+      provider: AI_PROVIDERS.OPENAI,
+      model: OPENAI_MODEL,
     };
   }
 }

@@ -147,7 +147,7 @@ export const AIAssistantPage: React.FC = () => {
               <h3 className="text-sm font-bold text-white flex items-center gap-2 font-heading">
                 AI Assistant
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <Zap className="w-2.5 h-2.5" /> Live — OpenCode
+                  <Zap className="w-2.5 h-2.5" /> Live — OpenAI
                 </span>
               </h3>
               <p className="text-xs text-slate-400">
@@ -159,7 +159,7 @@ export const AIAssistantPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
               <Bot className="w-4 h-4 text-mtn-yellow" />
-              <span>DeepSeek V4.1 Flash · OpenCode Zen</span>
+              <span>GPT-4o mini · OpenAI</span>
             </div>
             <button
               onClick={handleClearChat}
