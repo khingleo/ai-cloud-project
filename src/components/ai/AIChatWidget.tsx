@@ -2,7 +2,7 @@
  * FLOATING AI ASSISTANT WIDGET
  *
  * Embeddable floating drawer widget accessible from any page.
- * Powered by OpenAI (GPT-4o-mini) — real AI responses, no hardcoded scripts.
+ * Powered by NVIDIA NIM — real AI responses, no hardcoded scripts.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -167,7 +167,7 @@ export const AIChatWidget: React.FC = () => {
                 <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                   AI Assistant
                   <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-0.5">
-                    <Zap className="w-2 h-2" /> OpenAI
+                    <Zap className="w-2 h-2" /> NVIDIA
                   </span>
                 </h4>
                 <p className="text-[10px] text-slate-400">{providerInfo.label} · Streaming</p>

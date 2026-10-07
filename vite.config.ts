@@ -9,15 +9,15 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
-        '/api/openai': {
-          target: 'https://api.openai.com',
+        '/api/nvidia': {
+          target: 'https://integrate.api.nvidia.com',
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/openai/, '/v1'),
+          rewrite: (path) => path.replace(/^\/api\/nvidia/, ''),
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => {
-              if (env.OPENAI_API_KEY) {
-                proxyReq.setHeader('Authorization', `Bearer ${env.OPENAI_API_KEY}`)
+              if (env.NVIDIA_API_KEY) {
+                proxyReq.setHeader('Authorization', `Bearer ${env.NVIDIA_API_KEY}`)
               }
             })
           },

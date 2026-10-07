@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-const OPENAI_MODEL = 'gpt-4o-mini';
+const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const NVIDIA_MODEL = 'deepseek-ai/deepseek-v4.1-flash';
 
 interface ChatRequest extends IncomingMessage {
   body?: unknown;
@@ -30,7 +30,7 @@ export default async function handler(req: ChatRequest, res: ServerResponse) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL?.replace(/\/+$/, '');
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY
     || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
+  const nvidiaKey = process.env.NVIDIA_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     console.error('AI proxy is missing Supabase authentication configuration.');
@@ -38,8 +38,8 @@ export default async function handler(req: ChatRequest, res: ServerResponse) {
     return;
   }
 
-  if (!openaiKey) {
-    console.error('AI proxy is missing OPENAI_API_KEY.');
+  if (!nvidiaKey) {
+    console.error('AI proxy is missing NVIDIA_API_KEY.');
     sendJson(res, 503, 'The AI assistant is not configured yet.');
     return;
   }
@@ -79,13 +79,13 @@ export default async function handler(req: ChatRequest, res: ServerResponse) {
       return;
     }
 
-    const upstream = await fetch(OPENAI_URL, {
+    const upstream = await fetch(NVIDIA_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${openaiKey}`,
+        Authorization: `Bearer ${nvidiaKey}`,
       },
-      body: JSON.stringify({ ...requestBody, model: OPENAI_MODEL }),
+      body: JSON.stringify({ ...requestBody, model: NVIDIA_MODEL }),
     });
 
     if (!upstream.ok) {
