@@ -9,15 +9,15 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       proxy: {
-        '/api/nvidia': {
-          target: 'https://integrate.api.nvidia.com',
+        '/api/opencode': {
+          target: 'https://opencode.ai',
           changeOrigin: true,
           secure: true,
-          rewrite: (path) => path.replace(/^\/api\/nvidia/, ''),
+          rewrite: (path) => path.replace(/^\/api\/opencode/, '/zen'),
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => {
-              if (env.NVIDIA_API_KEY) {
-                proxyReq.setHeader('Authorization', `Bearer ${env.NVIDIA_API_KEY}`)
+              if (env.OPENCODE_API_KEY) {
+                proxyReq.setHeader('Authorization', `Bearer ${env.OPENCODE_API_KEY}`)
               }
             })
           },
