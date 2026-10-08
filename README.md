@@ -52,9 +52,9 @@ The first verified signup receives Staff access. Promote the first Super Admin f
 Task assignments are persisted as in-app notifications and emailed to the assigned user's registered Supabase Auth email. The email is sent server-side through Resend; never expose the Resend API key or Supabase service-role key to the browser.
 
 1. Apply `supabase/migrations/202610080002_task_assignments_notifications.sql` and then `supabase/migrations/202610080004_atomic_task_notifications.sql` to the Supabase project.
-2. Deploy the Edge Function with `supabase functions deploy task-assignment-notification`.
-3. Configure these Edge Function secrets in Supabase: `RESEND_API_KEY` (Resend sending key), `TASK_NOTIFICATION_FROM` (sender on the verified Resend domain), and `TASK_NOTIFICATION_APP_URL` (public app origin, such as `https://your-app.example.com`). Supabase provides `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to the Edge Function runtime.
-4. Deploy the frontend that invokes the Edge Function. If email delivery fails, the in-app notification is retained and the task page reports the email failure separately.
+2. Sign in to the Supabase CLI and deploy the function to the project referenced by `VITE_SUPABASE_URL`: `supabase functions deploy task-assignment-notification --project-ref vkchsvqaowzpdtmhaaje`. Keep JWT verification enabled.
+3. In the Supabase Dashboard, open **Edge Functions → Secrets** and configure `RESEND_API_KEY` (Resend sending key), `TASK_NOTIFICATION_FROM` (sender on the verified Resend domain), and `TASK_NOTIFICATION_APP_URL` (public app origin, such as `https://your-app.example.com`). Never add these or the Supabase service-role key to Vite variables or source control. Supabase provides `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to the Edge Function runtime.
+4. Deploy the frontend that invokes the Edge Function. If email delivery fails, the in-app notification is retained and the task page reports the email failure separately. Test with an assigned staff/admin account and verify both the in-app notification and email delivery.
 
 ### Shared customer data
 
