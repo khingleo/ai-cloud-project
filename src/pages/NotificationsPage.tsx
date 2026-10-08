@@ -27,7 +27,7 @@ export const NotificationsPage: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'UNREAD' | 'Approval' | 'Opportunity' | 'Delivery'>('ALL');
+  const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'UNREAD' | 'Approval' | 'Opportunity' | 'Delivery' | 'Task'>('ALL');
 
   const filteredNotifications = notifications.filter((n) => {
     if (selectedFilter === 'UNREAD') return !n.read;
@@ -82,6 +82,7 @@ export const NotificationsPage: React.FC = () => {
           { id: 'Approval', label: 'Approvals' },
           { id: 'Opportunity', label: 'Opportunities' },
           { id: 'Delivery', label: 'Deliveries' },
+          { id: 'Task', label: 'Tasks' },
         ].map((tab) => (
           <button
             key={tab.id}

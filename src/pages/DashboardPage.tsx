@@ -999,6 +999,7 @@ export const DashboardPage: React.FC = () => {
                         </div>
                         <p className="truncate text-[10px] text-slate-500 ml-3">
                           {task.assignedTo}
+                          {task.assignedToEmail ? ` · ${task.assignedToEmail}` : ''}
                           {task.customerName ? ` • ${task.customerName}` : ''}
                         </p>
                       </div>

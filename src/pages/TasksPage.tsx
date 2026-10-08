@@ -9,7 +9,7 @@
  * - Checkbox 1-click toggle status
  */
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   PlusCircle,
   Clock,
@@ -21,6 +21,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { useAppState } from '../context/AppStateContext';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { PageHeader } from '../components/common/PageHeader';
 import { DataTable, type Column } from '../components/common/DataTable';
@@ -37,11 +38,34 @@ export const TasksPage: React.FC = () => {
     updateTask,
     deleteTask,
     toggleTaskStatus,
+    notifyTaskAssignee,
     customers,
     users,
     getOrCreateCustomerByName,
   } = useAppState();
+  const { user: authenticatedUser, allRegisteredUsers } = useAuth();
   const { showToast } = useToast();
+  const assignees = useMemo(() => {
+    const appUsersByEmail = new Map(users.map((enterpriseUser) => [
+      enterpriseUser.email.trim().toLowerCase(),
+      enterpriseUser,
+    ]));
+    const accounts = new Map<string, typeof authenticatedUser>();
+    if (authenticatedUser) accounts.set(authenticatedUser.id, authenticatedUser);
+    allRegisteredUsers.forEach((registered) => accounts.set(registered.id, registered));
+    return Array.from(accounts.values()).flatMap((account) => {
+      if (!account) return [];
+      const appUser = appUsersByEmail.get(account.email.toLowerCase());
+      if (appUser?.status === 'Inactive') return [];
+      return [{
+        key: account.id,
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        detail: appUser ? `${appUser.role} · ${appUser.department}` : account.accessTier.replace('_', ' '),
+      }];
+    });
+  }, [allRegisteredUsers, authenticatedUser, users]);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -54,11 +78,29 @@ export const TasksPage: React.FC = () => {
   // Form states
   const [title, setTitle] = useState('');
   const [customerNameInput, setCustomerNameInput] = useState('');
-  const [assignedTo, setAssignedTo] = useState(users[0]?.name || 'Kwame Mensah');
+  const [assignedTo, setAssignedTo] = useState('');
+  const [assignedToUserId, setAssignedToUserId] = useState('');
+  const [assignedToEmail, setAssignedToEmail] = useState('');
+  const [assigneeKey, setAssigneeKey] = useState('');
   const [priority, setPriority] = useState<PriorityLevel>('High');
   const [dueDate, setDueDate] = useState('2026-10-05');
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('To Do');
   const [category, setCategory] = useState<TaskCategory>('Presales');
+  const selectedAssigneeExists = assignees.some((assignee) => assignee.key === assigneeKey);
+
+  const handleAssigneeChange = (key: string) => {
+    setAssigneeKey(key);
+    const selected = assignees.find((assignee) => assignee.key === key);
+    if (!selected) {
+      setAssignedTo(key.startsWith('legacy:') ? key.slice('legacy:'.length) : key);
+      setAssignedToUserId('');
+      setAssignedToEmail('');
+      return;
+    }
+    setAssignedTo(selected.name);
+    setAssignedToUserId(selected.id);
+    setAssignedToEmail(selected.email);
+  };
 
   const filteredTasks = tasks.filter((t) => {
     if (selectedCategory !== 'ALL' && t.category !== selectedCategory) return false;
@@ -69,7 +111,11 @@ export const TasksPage: React.FC = () => {
   const openAddModal = () => {
     setTitle('');
     setCustomerNameInput(customers[0]?.name || '');
-    setAssignedTo(users[0]?.name || 'Kwame Mensah');
+    const defaultAssignee = assignees.find((assignee) => assignee.id === authenticatedUser?.id) || assignees[0];
+    setAssignedTo(defaultAssignee?.name || '');
+    setAssignedToUserId(defaultAssignee?.id || '');
+    setAssignedToEmail(defaultAssignee?.email || '');
+    setAssigneeKey(defaultAssignee?.key || '');
     setPriority('High');
     setDueDate('2026-10-05');
     setTaskStatus('To Do');
@@ -81,7 +127,14 @@ export const TasksPage: React.FC = () => {
     setEditingTask(t);
     setTitle(t.title);
     setCustomerNameInput(t.customerName || '');
-    setAssignedTo(t.assignedTo);
+    const matchedAssignee = assignees.find((assignee) =>
+      (t.assignedToUserId && assignee.id === t.assignedToUserId)
+      || (t.assignedToEmail && assignee.email.toLowerCase() === t.assignedToEmail.toLowerCase())
+      || assignee.name === t.assignedTo);
+    setAssignedTo(matchedAssignee?.name || t.assignedTo);
+    setAssignedToUserId(t.assignedToUserId || matchedAssignee?.id || '');
+    setAssignedToEmail(t.assignedToEmail || matchedAssignee?.email || '');
+    setAssigneeKey(matchedAssignee?.key || t.assignedToEmail || `legacy:${t.assignedTo}`);
     setPriority(t.priority);
     setDueDate(t.dueDate);
     setTaskStatus(t.status);
@@ -101,19 +154,25 @@ export const TasksPage: React.FC = () => {
       customerName = cust.name;
     }
 
-    addTask({
+    const task = addTask({
       title: title.trim(),
       customerId,
       customerName,
       assignedTo,
+      assignedToUserId,
+      assignedToEmail,
       priority,
       dueDate,
       status: taskStatus,
       category,
     });
 
-    showToast('success', 'Task Created', 'Operational task assigned successfully.');
     setIsAddModalOpen(false);
+    void notifyTaskAssignee(task).then(() => {
+      showToast('success', 'Task Created', `Task assigned to ${task.assignedTo}; they have been notified.`);
+    }).catch((error: unknown) => {
+      showToast('error', 'Task Saved, Notification Failed', error instanceof Error ? error.message : 'The assignee could not be notified.');
+    });
   };
 
   const handleUpdateTask = (e: React.FormEvent) => {
@@ -134,14 +193,26 @@ export const TasksPage: React.FC = () => {
       customerId,
       customerName,
       assignedTo,
+      assignedToUserId,
+      assignedToEmail,
       priority,
       dueDate,
       status: taskStatus,
       category,
     });
 
-    showToast('success', 'Task Updated', 'Changes saved successfully.');
+    const wasReassigned = assignedToUserId && assignedToUserId !== editingTask.assignedToUserId;
     setEditingTask(null);
+    if (wasReassigned) {
+      const updatedTask = { ...editingTask, title: title.trim(), assignedTo, assignedToUserId, assignedToEmail };
+      void notifyTaskAssignee(updatedTask).then(() => {
+        showToast('success', 'Task Reassigned', `${assignedTo} has been notified.`);
+      }).catch((error: unknown) => {
+        showToast('error', 'Task Saved, Notification Failed', error instanceof Error ? error.message : 'The assignee could not be notified.');
+      });
+    } else {
+      showToast('success', 'Task Updated', 'Changes saved successfully.');
+    }
   };
 
   const handleDeleteConfirm = () => {
@@ -205,11 +276,19 @@ export const TasksPage: React.FC = () => {
     },
     {
       header: 'Assigned To',
-      accessor: (t) => (
-        <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
-          <User className="w-3.5 h-3.5 text-slate-400" /> {t.assignedTo}
-        </span>
-      ),
+      accessor: (t) => {
+        const assigneeEmail = t.assignedToEmail || assignees.find((assignee) =>
+          (t.assignedToUserId && assignee.id === t.assignedToUserId) || assignee.name === t.assignedTo)?.email;
+        return (
+          <div className="flex items-start gap-1.5 text-xs text-slate-800">
+            <User className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <div className="min-w-0">
+              <p className="font-bold">{t.assignedTo}</p>
+              {assigneeEmail && <p className="truncate text-[11px] font-normal text-slate-500">{assigneeEmail}</p>}
+            </div>
+          </div>
+        );
+      },
     },
     {
       header: 'Priority',
@@ -337,6 +416,7 @@ export const TasksPage: React.FC = () => {
           return (
             item.title.toLowerCase().includes(q) ||
             item.assignedTo.toLowerCase().includes(q) ||
+            (item.assignedToEmail ? item.assignedToEmail.toLowerCase().includes(q) : false) ||
             (item.customerName ? item.customerName.toLowerCase().includes(q) : false) ||
             item.category.toLowerCase().includes(q)
           );
@@ -380,16 +460,22 @@ export const TasksPage: React.FC = () => {
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Assigned Person</label>
               <select
-                value={assignedTo}
-                onChange={(e) => setAssignedTo(e.target.value)}
+                required
+                value={assigneeKey}
+                onChange={(e) => handleAssigneeChange(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-mtn-yellow/50"
               >
-                {users.map((u) => (
-                  <option key={u.id} value={u.name}>
-                    {u.name} ({u.role})
+                {!assignees.length && <option value="">No available users</option>}
+                {assignedTo && !selectedAssigneeExists && (
+                  <option value={assigneeKey}>{assignedTo}{assignedToEmail ? ` (${assignedToEmail})` : ' (no longer listed)'}</option>
+                )}
+                {assignees.map((assignee) => (
+                  <option key={assignee.key} value={assignee.key}>
+                    {assignee.name}{assignee.email ? ` — ${assignee.email}` : ''} ({assignee.detail})
                   </option>
                 ))}
               </select>
+              <p className="mt-1 text-[10px] text-slate-500">Only registered login accounts can receive task notifications.</p>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Department</label>
@@ -487,16 +573,22 @@ export const TasksPage: React.FC = () => {
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Assigned Person</label>
                 <select
-                  value={assignedTo}
-                  onChange={(e) => setAssignedTo(e.target.value)}
+                  required
+                  value={assigneeKey}
+                  onChange={(e) => handleAssigneeChange(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-mtn-yellow/50"
                 >
-                  {users.map((u) => (
-                    <option key={u.id} value={u.name}>
-                      {u.name} ({u.role})
+                  {!assignees.length && <option value="">No available users</option>}
+                  {assignedTo && !selectedAssigneeExists && (
+                    <option value={assigneeKey}>{assignedTo}{assignedToEmail ? ` (${assignedToEmail})` : ' (no longer listed)'}</option>
+                  )}
+                  {assignees.map((assignee) => (
+                    <option key={assignee.key} value={assignee.key}>
+                      {assignee.name}{assignee.email ? ` — ${assignee.email}` : ''} ({assignee.detail})
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-[10px] text-slate-500">Only registered login accounts can receive task notifications.</p>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Department</label>

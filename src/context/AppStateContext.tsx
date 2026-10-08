@@ -62,6 +62,10 @@ interface AppStateContextType {
   databaseSyncError: string | null;
   databaseSyncing: boolean;
   databaseReady: boolean;
+  importRecords: (
+    collection: MutableTransferCollection,
+    records: Array<Record<string, unknown>>,
+  ) => ImportSummary;
 
   // Helper for manual company entry
   getOrCreateCustomerByName: (companyName: string, segment?: CustomerSegment, industry?: string) => Customer;
@@ -154,6 +158,7 @@ interface AppStateContextType {
   updateTask: (id: string, updates: Partial<EnterpriseTask>) => void;
   deleteTask: (id: string) => void;
   toggleTaskStatus: (id: string) => void;
+  notifyTaskAssignee: (task: EnterpriseTask) => Promise<void>;
 
   // Actions - Users (CRUD)
   addUser: (user: Omit<EnterpriseUser, 'id'>) => EnterpriseUser;
@@ -170,6 +175,32 @@ interface AppStateContextType {
 
 const AppStateContext = createContext<AppStateContextType | undefined>(undefined);
 
+export type TransferCollection =
+  | 'customers'
+  | 'products'
+  | 'leads'
+  | 'opportunities'
+  | 'presales'
+  | 'documents'
+  | 'approvals'
+  | 'serviceDeliveries'
+  | 'activeServices'
+  | 'subscriptions'
+  | 'networkConfigs'
+  | 'standardPrices'
+  | 'customerPrices'
+  | 'billingAccounts'
+  | 'invoices'
+  | 'tasks'
+  | 'auditLogs';
+
+export type MutableTransferCollection = Exclude<TransferCollection, 'auditLogs'>;
+
+export interface ImportSummary {
+  added: number;
+  updated: number;
+}
+
 const STORAGE_PREFIX = 'mtn_hub_';
 const PRODUCTS_SEED_KEY = 'mtn_hub_products_official_v5';
 const SHARED_COLLECTIONS = [
@@ -181,12 +212,37 @@ const SHARED_COLLECTIONS = [
   'customer_prices',
   'documents',
   'audit_logs',
+  'tasks',
 ] as const;
 
 type SharedCollection = typeof SHARED_COLLECTIONS[number];
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toEnterpriseNotification(value: unknown): EnterpriseNotification | null {
+  if (
+    !isObjectRecord(value)
+    || typeof value.id !== 'string'
+    || typeof value.recipient_id !== 'string'
+    || typeof value.title !== 'string'
+    || typeof value.message !== 'string'
+    || typeof value.created_at !== 'string'
+    || typeof value.read !== 'boolean'
+    || typeof value.link !== 'string'
+  ) return null;
+
+  return {
+    id: value.id,
+    recipientId: value.recipient_id,
+    title: value.title,
+    message: value.message,
+    category: 'Task',
+    timestamp: new Date(value.created_at).toLocaleString(),
+    read: value.read,
+    link: value.link,
+  };
 }
 
 function serializeRecord(value: unknown): string {
@@ -220,6 +276,10 @@ function isValidSharedRecord(collection: SharedCollection, value: unknown): valu
       return typeof value.name === 'string' && typeof value.type === 'string';
     case 'audit_logs':
       return typeof value.recordId === 'string' && typeof value.action === 'string';
+    case 'tasks':
+      return typeof value.title === 'string'
+        && typeof value.assignedTo === 'string'
+        && typeof value.status === 'string';
   }
 }
 
@@ -1619,6 +1679,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     customer_prices: new Map(),
     documents: new Map(),
     audit_logs: new Map(),
+    tasks: new Map(),
   });
 
   const sharedRecords: Record<SharedCollection, unknown[]> = {
@@ -1630,6 +1691,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     customer_prices: customerPrices,
     documents,
     audit_logs: auditLogs,
+    tasks,
   };
   const sharedRecordsRef = useRef(sharedRecords);
   sharedRecordsRef.current = sharedRecords;
@@ -1644,6 +1706,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       case 'customer_prices': setCustomerPrices(records as unknown as CustomerSpecificPrice[]); break;
       case 'documents': setDocuments(records as unknown as EnterpriseDocument[]); break;
       case 'audit_logs': setAuditLogs(records as unknown as AuditLogEntry[]); break;
+      case 'tasks': setTasks(records as unknown as EnterpriseTask[]); break;
     }
   };
 
@@ -1793,6 +1856,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         customer_prices: new Map(),
         documents: new Map(),
         audit_logs: new Map(),
+        tasks: new Map(),
       };
       for (const row of data || []) {
         if (!SHARED_COLLECTIONS.includes(row.collection as SharedCollection)) continue;
@@ -1810,6 +1874,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         customer_prices: new Set(INITIAL_CUSTOMER_PRICES_SEED.map((item) => item.id)),
         documents: new Set(),
         audit_logs: new Set(INITIAL_AUDIT_LOGS_SEED.map((item) => item.id)),
+        tasks: new Set(),
       };
       const localRecords = sharedRecordsRef.current;
       const knownCustomerIds = new Set(remoteByCollection.customers.keys());
@@ -1824,7 +1889,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           if (!isValidSharedRecord(collection, item) || seededIds[collection].has(item.id) || remote.has(item.id)) {
             return false;
           }
-          if (collection !== 'customers' && collection !== 'documents' && collection !== 'audit_logs') {
+          if (collection !== 'customers' && collection !== 'documents' && collection !== 'audit_logs' && collection !== 'tasks') {
             return typeof item.customerId === 'string' && knownCustomerIds.has(item.customerId);
           }
           if (collection === 'documents' && item.customerId) {
@@ -1866,7 +1931,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       enqueueSharedChanges(collection, upserts, deletes);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, customers, subscriptions, networkConfigs, billingAccounts, invoices, customerPrices, documents, auditLogs]);
+  }, [user?.id, customers, subscriptions, networkConfigs, billingAccounts, invoices, customerPrices, documents, auditLogs, tasks]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1886,6 +1951,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         case 'customer_prices': setCustomerPrices(merge); break;
         case 'documents': setDocuments(merge); break;
         case 'audit_logs': setAuditLogs(merge); break;
+        case 'tasks': setTasks(merge); break;
       }
     };
 
@@ -1905,6 +1971,56 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       });
     return () => { void supabase.removeChannel(channel); };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    void supabase.from('user_notifications')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) {
+          setDatabaseSyncError(`Task notifications could not be loaded. Apply the task-assignment migration. ${error.message}`);
+          return;
+        }
+        const incoming = (data || []).map(toEnterpriseNotification)
+          .filter((notification): notification is EnterpriseNotification => notification !== null);
+        setNotifications((previous) => {
+          const incomingIds = new Set(incoming.map((notification) => notification.id));
+          return [...incoming, ...previous.filter((notification) =>
+            (!notification.recipientId || notification.recipientId === user.id) && !incomingIds.has(notification.id))];
+        });
+      });
+
+    const channel = supabase
+      .channel(`task-notifications-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_notifications',
+        filter: `recipient_id=eq.${user.id}`,
+      }, (payload) => {
+        if (payload.eventType === 'DELETE') {
+          const deletedId = String(payload.old.id || '');
+          setNotifications((previous) => previous.filter((notification) => notification.id !== deletedId));
+          return;
+        }
+        const incoming = toEnterpriseNotification(payload.new);
+        if (!incoming) return;
+        setNotifications((previous) => [incoming, ...previous.filter((notification) => notification.id !== incoming.id)]);
+      })
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setDatabaseSyncError(`Live task notifications are unavailable: ${error?.message || status}`);
+        }
+      });
+    return () => {
+      active = false;
+      void supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   // ==========================================
@@ -2569,7 +2685,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // TASK ACTIONS (CRUD)
   // ==========================================
   const addTask = (taskData: Omit<EnterpriseTask, 'id' | 'createdAt'>): EnterpriseTask => {
-    const newId = `TSK-2026-${String(tasks.length + 1).padStart(3, '0')}`;
+    const newId = createRecordId('TSK');
     const newTask: EnterpriseTask = {
       ...taskData,
       id: newId,
@@ -2577,6 +2693,39 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
     setTasks((prev) => [newTask, ...prev]);
     return newTask;
+  };
+
+  const notifyTaskAssignee = async (task: EnterpriseTask): Promise<void> => {
+    const recipientId = task.assignedToUserId;
+    if (!recipientId || !/^[0-9a-f-]{36}$/i.test(recipientId)) {
+      throw new Error('The selected assignee does not have a registered login account to notify.');
+    }
+    const { error: taskSaveError } = await supabase.from('shared_records').upsert({
+      collection: 'tasks',
+      id: task.id,
+      data: task,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'collection,id' });
+    if (taskSaveError) {
+      throw new Error(`The task was saved locally, but could not be shared before notification: ${taskSaveError.message}`);
+    }
+    const { data, error } = await supabase.from('user_notifications').insert({
+      id: createRecordId('NOTIF'),
+      recipient_id: recipientId,
+      task_id: task.id,
+      title: 'New task assigned to you',
+      message: `${user?.name || 'A team member'} assigned you "${task.title}".`,
+      category: 'Task',
+      read: false,
+      link: `/tasks?task=${encodeURIComponent(task.id)}`,
+    }).select('*').single();
+    if (error) throw new Error(`The task was saved, but its assignee could not be notified: ${error.message}`);
+    const notification = toEnterpriseNotification(data);
+    if (!notification) throw new Error('The notification was saved but returned invalid data.');
+    setNotifications((previous) => [
+      notification,
+      ...previous.filter((existing) => existing.id !== notification.id),
+    ]);
   };
 
   const updateTask = (id: string, updates: Partial<EnterpriseTask>) => {
@@ -2591,6 +2740,85 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setTasks((prev) =>
       prev.map((t) => (t.id === id ? { ...t, status: t.status === 'Completed' ? 'In Progress' : 'Completed' } : t))
     );
+  };
+
+  const importRecords = (
+    collection: MutableTransferCollection,
+    records: Array<Record<string, unknown>>,
+  ): ImportSummary => {
+    const summary = { added: 0, updated: 0 };
+    const mergeRecords = <T extends { id: string }>(current: T[], incoming: T[]): T[] => {
+      const byId = new Map(current.map((record) => [record.id, record]));
+      for (const record of incoming) {
+        byId.set(record.id, { ...byId.get(record.id), ...record });
+      }
+      const incomingIds = new Set(incoming.map((record) => record.id));
+      return [...incoming.map((record) => byId.get(record.id)!), ...current.filter((record) => !incomingIds.has(record.id))];
+    };
+    const mergeIntoState = <T extends { id: string }>(
+      current: T[],
+      incoming: T[],
+      setCollection: React.Dispatch<React.SetStateAction<T[]>>,
+    ) => {
+      const existingIds = new Set(current.map((record) => record.id));
+      summary.added += incoming.filter((record) => !existingIds.has(record.id)).length;
+      summary.updated += incoming.filter((record) => existingIds.has(record.id)).length;
+      setCollection((previous) => mergeRecords(previous, incoming));
+    };
+    const imported = records.filter((record): record is Record<string, unknown> & { id: string } =>
+      isObjectRecord(record) && typeof record.id === 'string' && record.id.trim().length > 0);
+
+    switch (collection) {
+      case 'customers':
+        mergeIntoState(customers, imported as unknown as Customer[], setCustomers);
+        break;
+      case 'products':
+        mergeIntoState(products, imported as unknown as EnterpriseProduct[], setProducts);
+        break;
+      case 'leads':
+        mergeIntoState(leads, imported as unknown as Lead[], setLeads);
+        break;
+      case 'opportunities':
+        mergeIntoState(opportunities, imported as unknown as Opportunity[], setOpportunities);
+        break;
+      case 'presales':
+        mergeIntoState(presales, imported as unknown as PresalesRequest[], setPresales);
+        break;
+      case 'documents':
+        mergeIntoState(documents, imported as unknown as EnterpriseDocument[], setDocuments);
+        break;
+      case 'approvals':
+        mergeIntoState(approvals, imported as unknown as EnterpriseApproval[], setApprovals);
+        break;
+      case 'serviceDeliveries':
+        mergeIntoState(serviceDeliveries, imported as unknown as ServiceDelivery[], setServiceDeliveries);
+        break;
+      case 'activeServices':
+        mergeIntoState(activeServices, imported as unknown as ActiveService[], setActiveServices);
+        break;
+      case 'subscriptions':
+        mergeIntoState(subscriptions, imported as unknown as ServiceSubscription[], setSubscriptions);
+        break;
+      case 'networkConfigs':
+        mergeIntoState(networkConfigs, imported as unknown as NetworkConfiguration[], setNetworkConfigs);
+        break;
+      case 'standardPrices':
+        mergeIntoState(standardPrices, imported as unknown as StandardPriceItem[], setStandardPrices);
+        break;
+      case 'customerPrices':
+        mergeIntoState(customerPrices, imported as unknown as CustomerSpecificPrice[], setCustomerPrices);
+        break;
+      case 'billingAccounts':
+        mergeIntoState(billingAccounts, imported as unknown as BillingAccount[], setBillingAccounts);
+        break;
+      case 'invoices':
+        mergeIntoState(invoices, imported as unknown as InvoiceRecord[], setInvoices);
+        break;
+      case 'tasks':
+        mergeIntoState(tasks, imported as unknown as EnterpriseTask[], setTasks);
+        break;
+    }
+    return summary;
   };
 
   // ==========================================
@@ -2618,11 +2846,30 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // NOTIFICATION ACTIONS
   // ==========================================
   const markNotificationAsRead = (id: string) => {
+    const notification = notifications.find((item) => item.id === id);
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    if (notification?.recipientId && user?.id === notification.recipientId) {
+      void supabase.from('user_notifications').update({ read: true })
+        .eq('id', id)
+        .eq('recipient_id', user.id)
+        .then(({ error }) => {
+          if (error) setDatabaseSyncError(`Task notification read status could not be saved: ${error.message}`);
+        });
+    }
   };
 
   const markAllNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => (
+      !n.recipientId || n.recipientId === user?.id ? { ...n, read: true } : n
+    )));
+    if (user?.id) {
+      void supabase.from('user_notifications').update({ read: true })
+        .eq('recipient_id', user.id)
+        .eq('read', false)
+        .then(({ error }) => {
+          if (error) setDatabaseSyncError(`Task notification read status could not be saved: ${error.message}`);
+        });
+    }
   };
 
   return (
@@ -2647,8 +2894,10 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         databaseSyncError,
         databaseSyncing,
         databaseReady,
+        importRecords,
         tasks,
-        notifications,
+        notifications: notifications.filter((notification) =>
+          !notification.recipientId || notification.recipientId === user?.id),
         users,
         currentUser,
 
@@ -2725,6 +2974,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         updateTask,
         deleteTask,
         toggleTaskStatus,
+        notifyTaskAssignee,
 
         addUser,
         updateUser,

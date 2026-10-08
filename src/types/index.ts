@@ -334,6 +334,8 @@ export interface EnterpriseTask {
   customerName?: string;
   opportunityId?: string;
   assignedTo: string;
+  assignedToUserId?: string;
+  assignedToEmail?: string;
   priority: PriorityLevel;
   dueDate: string;
   status: TaskStatus;
@@ -343,6 +345,7 @@ export interface EnterpriseTask {
 
 export interface EnterpriseNotification {
   id: string;
+  recipientId?: string;
   title: string;
   message: string;
   category: 'Opportunity' | 'Approval' | 'Document' | 'Delivery' | 'Task' | 'System';
