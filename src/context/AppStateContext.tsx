@@ -2278,6 +2278,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateOpportunityStage = (id: string, newStage: OpportunityStage) => {
+    const opportunity = opportunities.find((item) => item.id === id);
     setOpportunities((prev) =>
       prev.map((opp) => {
         if (opp.id !== id) return opp;
@@ -2292,6 +2293,41 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         };
       })
     );
+
+    if (newStage === 'Won' && opportunity && !approvals.some((approval) => approval.opportunityId === id)) {
+      const stageOrder: ApprovalStageName[] = [
+        'Sales Operations',
+        'Credit Control',
+        'Quality Assurance',
+        'CENO',
+        'DCLM',
+        'Service Delivery',
+      ];
+      const now = new Date().toISOString();
+      setApprovals((previous) => {
+        if (previous.some((approval) => approval.opportunityId === id)) return previous;
+        return [{
+          id: `APP-2026-${String(previous.length + 1).padStart(3, '0')}`,
+          opportunityId: opportunity.id,
+          opportunityTitle: opportunity.title,
+          customerId: opportunity.customerId,
+          customerName: opportunity.customerName,
+          productName: opportunity.productName,
+          totalValueGHS: opportunity.valueGHS,
+          currentStage: stageOrder[0],
+          status: 'Pending',
+          stages: stageOrder.map((stage, index) => ({
+            stageName: stage,
+            role: `${stage} Approver`,
+            approverName: `${stage} Queue`,
+            status: index === 0 ? 'Pending' : 'Waiting',
+          })),
+          submittedBy: user?.name || 'Enterprise User',
+          createdAt: now,
+          updatedAt: now,
+        }, ...previous];
+      });
+    }
   };
 
   const updateOpportunity = (id: string, updates: Partial<Opportunity>) => {
@@ -2700,26 +2736,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!recipientId || !/^[0-9a-f-]{36}$/i.test(recipientId)) {
       throw new Error('The selected assignee does not have a registered login account to notify.');
     }
-    const { error: taskSaveError } = await supabase.from('shared_records').upsert({
-      collection: 'tasks',
-      id: task.id,
-      data: task,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'collection,id' });
-    if (taskSaveError) {
-      throw new Error(`The task was saved locally, but could not be shared before notification: ${taskSaveError.message}`);
-    }
-    const { data, error } = await supabase.from('user_notifications').insert({
-      id: createRecordId('NOTIF'),
-      recipient_id: recipientId,
-      task_id: task.id,
-      title: 'New task assigned to you',
-      message: `${user?.name || 'A team member'} assigned you "${task.title}".`,
-      category: 'Task',
-      read: false,
-      link: `/tasks?task=${encodeURIComponent(task.id)}`,
-    }).select('*').single();
-    if (error) throw new Error(`The task was saved, but its assignee could not be notified: ${error.message}`);
+    const { data, error } = await supabase.rpc('create_task_assignment_notification', {
+      p_task: task,
+      p_notification_id: createRecordId('NOTIF'),
+      p_title: 'New task assigned to you',
+      p_message: `${user?.name || 'A team member'} assigned you "${task.title}".`,
+      p_link: `/tasks?task=${encodeURIComponent(task.id)}`,
+    }).single();
+    if (error) throw new Error(`The task remains saved locally, but its assignee could not be notified: ${error.message}`);
     const notification = toEnterpriseNotification(data);
     if (!notification) throw new Error('The notification was saved but returned invalid data.');
     setNotifications((previous) => [

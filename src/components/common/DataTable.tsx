@@ -57,10 +57,10 @@ export function DataTable<T extends { id: string }>({
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
       {/* Table Toolbar */}
-      <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/40">
-        <div className="flex flex-1 items-center gap-3 w-full sm:w-auto">
+      <div className="p-3 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-50/40">
+        <div className="flex flex-wrap flex-1 items-center gap-3 min-w-0 w-full sm:w-auto">
           {searchFilter && (
-            <div className="relative flex-1 max-w-md">
+            <div className="relative flex-1 min-w-[min(100%,14rem)] max-w-md">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
@@ -70,19 +70,24 @@ export function DataTable<T extends { id: string }>({
                   setCurrentPage(1);
                 }}
                 placeholder={searchPlaceholder}
-                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-mtn-yellow/50 focus:border-mtn-yellow transition-all"
+                className="w-full min-h-11 pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-mtn-yellow/50 focus:border-mtn-yellow transition-all"
               />
             </div>
           )}
           {filterSlot}
         </div>
 
-        {actionsSlot && <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">{actionsSlot}</div>}
+        {actionsSlot && <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 self-end sm:self-auto max-w-full">{actionsSlot}</div>}
       </div>
 
       {/* Table Body */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
+      <div
+        className="overflow-x-auto overscroll-x-contain"
+        role="region"
+        aria-label="Data table"
+        tabIndex={0}
+      >
+        <table className="w-max min-w-full text-left border-collapse sm:w-full">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               {columns.map((col, idx) => (
@@ -129,18 +134,18 @@ export function DataTable<T extends { id: string }>({
 
       {/* Pagination Footer */}
       {filteredData.length > pageSize && (
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 bg-slate-50/30">
-          <span>
+        <div className="p-3 sm:p-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 bg-slate-50/30">
+          <span className="min-w-0 flex-1 basis-40">
             Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to{' '}
             <strong>{Math.min(currentPage * pageSize, filteredData.length)}</strong> of{' '}
             <strong>{filteredData.length}</strong> results
           </span>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               aria-label="Previous page"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -151,7 +156,7 @@ export function DataTable<T extends { id: string }>({
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="min-w-11 min-h-11 flex items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               aria-label="Next page"
             >
               <ChevronRight className="w-4 h-4" />

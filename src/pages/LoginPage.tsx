@@ -76,7 +76,7 @@ const OtpBoxes: React.FC<{
   };
 
   return (
-    <div className="flex gap-3 justify-center">
+    <div className="grid w-full grid-cols-6 gap-1.5 justify-center">
       {Array.from({ length: 6 }).map((_, i) => (
         <input
           key={i}
@@ -90,12 +90,12 @@ const OtpBoxes: React.FC<{
           onChange={(e) => commit(i, e.target.value.replace(/\D/g, '').slice(-1))}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
-          className={`w-12 h-14 text-center text-2xl font-bold rounded-2xl border-2
-            text-white focus:outline-none transition-all duration-150 caret-transparent
+          className={`w-full min-w-0 h-12 sm:h-14 text-center text-xl sm:text-2xl font-bold rounded-xl border-2
+            text-slate-900 lg:text-white focus:outline-none transition-all duration-150 caret-transparent
             disabled:opacity-30 select-none
             ${digits[i]
-              ? 'bg-yellow-400/15 border-yellow-400 shadow-lg shadow-yellow-400/10'
-              : 'bg-white/5 border-white/15 focus:border-yellow-400/70 focus:bg-yellow-400/8'
+              ? 'bg-yellow-50 border-yellow-500 shadow-lg shadow-yellow-400/10 lg:bg-yellow-400/15 lg:border-yellow-400'
+              : 'bg-slate-50 border-slate-300 focus:border-yellow-500 focus:bg-yellow-50 lg:bg-white/5 lg:border-white/15 lg:focus:border-yellow-400/70 lg:focus:bg-yellow-400/8'
             }`}
         />
       ))}
@@ -105,7 +105,7 @@ const OtpBoxes: React.FC<{
 
 // ─── Hero left panel (reused on both views) ───────────────────────────────────
 const HeroPanel: React.FC = () => (
-  <div className="hidden lg:flex lg:w-[55%] xl:w-[58%] relative flex-col justify-between p-10 xl:p-14 overflow-hidden">
+  <div className="login-hero-enter hidden lg:flex lg:w-[55%] xl:w-[58%] relative flex-col justify-between p-10 xl:p-14 overflow-hidden">
     {/* Orbs */}
     <div className="pointer-events-none absolute inset-0">
       <div className="animate-orb-purple absolute -top-40 -left-40 w-[540px] h-[540px] rounded-full bg-purple-600/18 blur-3xl" />
@@ -116,7 +116,7 @@ const HeroPanel: React.FC = () => (
     <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-white/8 to-transparent" />
 
     {/* Logo */}
-    <div className="relative z-10 flex items-center gap-3">
+    <div className="login-hero-brand-enter relative z-10 flex items-center gap-3">
       <div className="w-11 h-11 rounded-2xl bg-yellow-400 flex items-center justify-center shadow-xl shadow-yellow-400/25 shrink-0">
         <ShieldCheck className="w-5 h-5 text-black" />
       </div>
@@ -127,7 +127,7 @@ const HeroPanel: React.FC = () => (
     </div>
 
     {/* Headline */}
-    <div className="relative z-10 space-y-8">
+    <div className="login-hero-copy-enter relative z-10 space-y-8">
       <div className="space-y-5">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-xs font-bold">
           <Zap className="w-3.5 h-3.5" /> AI-Powered Cloud Repository
@@ -167,7 +167,7 @@ const HeroPanel: React.FC = () => (
       </div>
     </div>
 
-    <p className="relative z-10 text-[11px] text-slate-700">© 2026 MTN Ghana · Enterprise Business Unit · All rights reserved</p>
+    <p className="login-hero-footer-enter relative z-10 text-[11px] text-slate-700">© 2026 MTN Ghana · Enterprise Business Unit · All rights reserved</p>
   </div>
 );
 
@@ -328,28 +328,28 @@ export const LoginPage: React.FC = () => {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex bg-[#090812] overflow-hidden">
+    <div className="min-h-screen flex bg-slate-50 lg:bg-[#090812] overflow-x-clip lg:overflow-hidden">
       <HeroPanel />
 
       {/* Right panel — clips children for slide transition */}
-      <div className="flex-1 relative overflow-hidden">
+      <div className="flex-1 relative bg-slate-50 lg:bg-transparent overflow-x-clip lg:overflow-hidden">
 
         {/* ══════════════ AUTH VIEW (email+pwd / register) ══════════════ */}
-        <div className="absolute inset-0 flex flex-col justify-center items-center px-6 py-10 sm:px-10">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-bl from-slate-900/40 via-transparent to-[#090812]/60" />
+        <div className="relative min-h-[100svh] lg:absolute lg:inset-0 lg:min-h-0 flex flex-col justify-center items-center px-3 py-6 sm:px-4 sm:py-10 lg:px-10">
+          <div className="pointer-events-none absolute inset-0 hidden bg-gradient-to-bl from-slate-900/40 via-transparent to-[#090812]/60 lg:block" />
 
           {/* Mobile logo */}
-          <div className="lg:hidden relative z-10 mb-6 text-center">
+          <div className="login-mobile-brand-enter lg:hidden relative z-10 mb-6 text-center shrink-0">
             <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-yellow-400 shadow-xl shadow-yellow-400/20 mb-3">
               <ShieldCheck className="w-6 h-6 text-black" />
             </div>
-            <h1 className="text-lg font-bold text-white font-heading">MTN Enterprise Hub</h1>
+            <h1 className="text-lg font-bold text-slate-900 font-heading lg:text-white">MTN Enterprise Hub</h1>
           </div>
 
-          <div className="relative z-10 w-full max-w-[400px] space-y-4">
+          <div className="relative z-10 w-full max-w-[400px] space-y-4 shrink-0">
 
             {/* Mode tabs */}
-            {view === 'auth' && <div className="flex gap-1 p-1 rounded-2xl bg-white/4 border border-white/8">
+            {view === 'auth' && <div className="login-tabs-enter flex gap-1 p-1 rounded-xl bg-white border border-slate-200 shadow-sm lg:rounded-2xl lg:bg-white/4 lg:border-white/8">
               {(['login', 'register'] as Mode[]).map((m) => (
                 <button key={m} onClick={() => switchMode(m)}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
@@ -361,13 +361,13 @@ export const LoginPage: React.FC = () => {
             </div>}
 
             {/* Card */}
-            <div className="glass-card-border bg-white/3 backdrop-blur-xl rounded-3xl p-7 sm:p-8 shadow-2xl border border-white/8">
+            <div className="login-card-enter rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-900/5 sm:p-6 lg:glass-card-border lg:rounded-3xl lg:border-white/8 lg:bg-white/3 lg:p-8 lg:backdrop-blur-xl lg:shadow-2xl">
 
               {/* ── LOGIN FORM ── */}
               {view === 'auth' && mode === 'login' && (
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="mb-5">
-                    <h2 className="text-[18px] font-extrabold text-white font-heading">Welcome back</h2>
+                    <h2 className="text-[18px] font-extrabold text-slate-900 font-heading lg:text-white">Welcome back</h2>
                     <p className="text-[11px] text-slate-500 mt-0.5">Sign in with your corporate email</p>
                   </div>
 
@@ -391,7 +391,7 @@ export const LoginPage: React.FC = () => {
               {view === 'auth' && mode === 'register' && (
                 <form onSubmit={handleRegister} className="space-y-3.5">
                   <div className="mb-4">
-                    <h2 className="text-[18px] font-extrabold text-white font-heading">Create account</h2>
+                    <h2 className="text-[18px] font-extrabold text-slate-900 font-heading lg:text-white">Create account</h2>
                     <p className="text-[11px] text-slate-500 mt-0.5">New accounts start with Staff access</p>
                   </div>
 
@@ -435,7 +435,7 @@ export const LoginPage: React.FC = () => {
                       <ShieldCheck className="w-5 h-5 text-black" />
                     </div>
                     <div>
-                      <h2 className="text-base font-extrabold text-white font-heading">Verify your identity</h2>
+                      <h2 className="text-base font-extrabold text-slate-900 font-heading lg:text-white">Verify your identity</h2>
                       <p className="text-[11px] text-slate-400">
                         {otpMode === 'login' ? 'Two-factor authentication' : 'Email verification'}
                       </p>
@@ -445,13 +445,13 @@ export const LoginPage: React.FC = () => {
                   {smtpWarn && otpMsg
                     ? <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20">
                         <AlertTriangle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
-                        <p className="text-[11px] text-amber-300 leading-relaxed">{otpMsg}</p>
+                        <p className="text-[11px] text-amber-800 leading-relaxed lg:text-amber-300">{otpMsg}</p>
                       </div>
                     : <div className="flex items-center gap-2.5 p-3 rounded-xl bg-emerald-500/8 border border-emerald-500/20">
                         <Inbox className="w-4 h-4 text-emerald-400 shrink-0" />
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-emerald-300">Code sent to your inbox</p>
-                          <p className="text-[11px] text-emerald-400/70 truncate">{otpEmail}</p>
+                          <p className="text-xs font-bold text-emerald-800 lg:text-emerald-300">Code sent to your inbox</p>
+                          <p className="text-[11px] text-emerald-700 truncate lg:text-emerald-400/70">{otpEmail}</p>
                         </div>
                       </div>
                   }
@@ -473,11 +473,11 @@ export const LoginPage: React.FC = () => {
                     </button>
                   </form>
 
-                  <div className="border-t border-white/6 pt-4 flex items-center justify-between">
-                    <p className="text-[11px] text-slate-600">Didn't receive the code?</p>
+                  <div className="border-t border-slate-200 pt-4 flex items-center justify-between lg:border-white/6">
+                    <p className="text-[11px] text-slate-500 lg:text-slate-600">Didn't receive the code?</p>
                     <button type="button" onClick={handleResend} disabled={resend > 0 || loading}
                       className="flex items-center gap-1.5 text-[11px] font-bold text-yellow-400
-                        hover:text-yellow-300 disabled:text-slate-600 disabled:cursor-not-allowed transition">
+                        hover:text-yellow-600 disabled:text-slate-400 disabled:cursor-not-allowed transition lg:hover:text-yellow-300 lg:disabled:text-slate-600">
                       <RefreshCw className="w-3.5 h-3.5" />
                       {resend > 0 ? `Resend in ${resend}s` : 'Resend code'}
                     </button>
@@ -486,7 +486,7 @@ export const LoginPage: React.FC = () => {
               )}
             </div>
 
-            <p className="text-center text-[10px] text-slate-700">
+            <p className="login-legal-enter text-center text-[10px] text-slate-500 lg:text-slate-700">
               © 2026 MTN Ghana · Enterprise Business Unit
             </p>
           </div>
@@ -507,18 +507,19 @@ const InputField: React.FC<{
   autoComplete?: string;
 }> = ({ id, label, type = 'text', value, onChange, placeholder, autoFocus, icon, rightSlot, autoComplete }) => (
   <div>
-    <label htmlFor={id} className="block text-[11px] font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
+    <label htmlFor={id} className="block text-[11px] font-semibold text-slate-600 mb-1.5 uppercase tracking-wider lg:text-slate-400">
       {label}
     </label>
     <div className="relative">
-      {icon && <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-600">{icon}</div>}
+      {icon && <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 lg:text-slate-600">{icon}</div>}
       <input
         id={id} type={type} value={value} placeholder={placeholder}
         autoFocus={autoFocus} autoComplete={autoComplete}
         onChange={(e) => onChange(e.target.value)}
         className={`w-full ${icon ? 'pl-10' : 'pl-4'} ${rightSlot ? 'pr-11' : 'pr-4'} py-3 rounded-xl
-          bg-white/5 border border-white/10 text-white text-sm placeholder-slate-600
-          focus:outline-none focus:ring-2 focus:ring-yellow-400/35 focus:border-yellow-400/40 transition-all`}
+          bg-slate-50 border border-slate-300 text-slate-900 text-sm placeholder-slate-400
+          focus:outline-none focus:ring-2 focus:ring-yellow-400/35 focus:border-yellow-400/40 transition-all
+          lg:bg-white/5 lg:border-white/10 lg:text-white lg:placeholder-slate-600`}
       />
       {rightSlot && <div className="absolute right-3.5 top-1/2 -translate-y-1/2">{rightSlot}</div>}
     </div>
@@ -537,8 +538,8 @@ const Btn: React.FC<{ loading?: boolean; disabled?: boolean; label: string; icon
 );
 
 const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
-  <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-rose-500/8 border border-rose-500/20">
+  <div className="flex items-start gap-2.5 px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 lg:bg-rose-500/8 lg:border-rose-500/20">
     <div className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
-    <p className="text-[11px] text-rose-300 leading-relaxed">{message}</p>
+    <p className="text-[11px] text-rose-800 leading-relaxed lg:text-rose-300">{message}</p>
   </div>
 );

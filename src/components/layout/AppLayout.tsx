@@ -18,7 +18,7 @@ export const AppLayout: React.FC = () => {
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-slate-900 flex font-sans antialiased">
+    <div className="min-h-[100dvh] bg-[#F8F9FA] text-slate-900 flex font-sans antialiased">
 
       {/* Sidebar — desktop sticky + mobile overlay */}
       <Sidebar
@@ -38,12 +38,13 @@ export const AppLayout: React.FC = () => {
         />
 
         {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 bg-white p-2 sm:bg-transparent sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <Outlet />
+          <AIChatWidget />
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500 bg-white">
+        <footer className="border-t border-slate-200 bg-white px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-center text-xs text-slate-500 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto">
             <p>
               © 2026 <strong>MTN Ghana</strong> — Enterprise Business Unit (EBU) · AI Central Repository
@@ -58,8 +59,6 @@ export const AppLayout: React.FC = () => {
         onClose={() => setIsGlobalSearchOpen(false)}
       />
 
-      {/* Floating AI Assistant Widget */}
-      <AIChatWidget />
     </div>
   );
 };

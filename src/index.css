@@ -49,6 +49,13 @@
   background: #474170;
 }
 
+@media (max-width: 639px) {
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
 /* Glassmorphic Cyber Utilities & Keyframes */
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
@@ -142,10 +149,10 @@ input:-webkit-autofill:active {
     transform: translate(0px, 0px) scale(1);
   }
   33% {
-    transform: translate(45px, -35px) scale(1.1);
+    transform: translate(24px, -18px) scale(1.04);
   }
   66% {
-    transform: translate(-30px, 40px) scale(0.95);
+    transform: translate(-18px, 22px) scale(0.97);
   }
   100% {
     transform: translate(0px, 0px) scale(1);
@@ -157,10 +164,10 @@ input:-webkit-autofill:active {
     transform: translate(0px, 0px) scale(1);
   }
   33% {
-    transform: translate(-50px, 35px) scale(0.92);
+    transform: translate(-26px, 20px) scale(0.97);
   }
   66% {
-    transform: translate(35px, -45px) scale(1.08);
+    transform: translate(20px, -24px) scale(1.04);
   }
   100% {
     transform: translate(0px, 0px) scale(1);
@@ -170,18 +177,37 @@ input:-webkit-autofill:active {
 @keyframes brand-glow-breathing {
   0% {
     opacity: 0.45;
-    transform: translate(-50%, -50%) scale(0.92);
-    filter: blur(28px) hue-rotate(0deg);
+    transform: translate(-50%, -50%) scale(0.97);
   }
   50% {
-    opacity: 0.75;
-    transform: translate(-50%, -50%) scale(1.12);
-    filter: blur(34px) hue-rotate(25deg);
+    opacity: 0.62;
+    transform: translate(-50%, -50%) scale(1.03);
   }
   100% {
     opacity: 0.45;
-    transform: translate(-50%, -50%) scale(0.92);
-    filter: blur(28px) hue-rotate(0deg);
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+}
+
+@keyframes login-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes login-rise-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -219,15 +245,57 @@ input:-webkit-autofill:active {
 }
 
 .animate-orb-purple {
-  animation: float-slow-purple 22s ease-in-out infinite;
+  animation: float-slow-purple 34s ease-in-out infinite;
 }
 
 .animate-orb-blue {
-  animation: float-slow-blue 26s ease-in-out infinite;
+  animation: float-slow-blue 38s ease-in-out infinite;
 }
 
 .animate-brand-glow {
-  animation: brand-glow-breathing 7s ease-in-out infinite;
+  animation: brand-glow-breathing 12s ease-in-out infinite;
+}
+
+.login-hero-enter {
+  animation: login-panel-enter 700ms cubic-bezier(0.2, 0.7, 0.2, 1) 80ms both;
+}
+
+.login-hero-brand-enter,
+.login-hero-copy-enter,
+.login-hero-footer-enter,
+.login-mobile-brand-enter,
+.login-tabs-enter,
+.login-card-enter,
+.login-legal-enter {
+  animation: login-rise-enter 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.login-hero-brand-enter {
+  animation-delay: 160ms;
+}
+
+.login-hero-copy-enter {
+  animation-delay: 260ms;
+}
+
+.login-hero-footer-enter {
+  animation-delay: 380ms;
+}
+
+.login-mobile-brand-enter {
+  animation-delay: 80ms;
+}
+
+.login-tabs-enter {
+  animation-delay: 140ms;
+}
+
+.login-card-enter {
+  animation-delay: 220ms;
+}
+
+.login-legal-enter {
+  animation-delay: 340ms;
 }
 
 .animate-icon-1 {
@@ -249,9 +317,18 @@ input:-webkit-autofill:active {
   .animate-brand-glow,
   .animate-icon-1,
   .animate-icon-2,
-  .animate-icon-3 {
+  .animate-icon-3,
+  .login-hero-enter,
+  .login-hero-brand-enter,
+  .login-hero-copy-enter,
+  .login-hero-footer-enter,
+  .login-mobile-brand-enter,
+  .login-tabs-enter,
+  .login-card-enter,
+  .login-legal-enter {
     animation: none !important;
     transform: none !important;
+    opacity: 1 !important;
   }
   
   .button-sheen-effect:hover::after {
