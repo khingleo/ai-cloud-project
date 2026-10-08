@@ -47,6 +47,15 @@ For Vercel, add `NVIDIA_API_KEY` as a Secret environment variable. The Supabase 
 
 The first verified signup receives Staff access. Promote the first Super Admin from the Supabase SQL Editor after the account exists; do not grant elevated roles from frontend code.
 
+### Task assignment notifications
+
+Task assignments are persisted as in-app notifications and emailed to the assigned user's registered Supabase Auth email. The email is sent server-side through Resend; never expose the Resend API key or Supabase service-role key to the browser.
+
+1. Apply `supabase/migrations/202610080002_task_assignments_notifications.sql` and then `supabase/migrations/202610080004_atomic_task_notifications.sql` to the Supabase project.
+2. Deploy the Edge Function with `supabase functions deploy task-assignment-notification`.
+3. Configure these Edge Function secrets in Supabase: `RESEND_API_KEY` (Resend sending key), `TASK_NOTIFICATION_FROM` (sender on the verified Resend domain), and `TASK_NOTIFICATION_APP_URL` (public app origin, such as `https://your-app.example.com`). Supabase provides `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to the Edge Function runtime.
+4. Deploy the frontend that invokes the Edge Function. If email delivery fails, the in-app notification is retained and the task page reports the email failure separately.
+
 ### Shared customer data
 
 Before using customer dossiers, apply `supabase/migrations/202610080001_shared_customer_records.sql` to the Supabase project (for example, paste and run it in the Supabase SQL Editor). It creates the shared JSONB record table, authenticated-user read/write policies, indexes, and Realtime publication entry. All authenticated users share the same customer records. Existing browser-local, user-added records are merged into the shared table on the first successful sign-in; built-in sample/seed records are not migrated. Local storage is only a cache. A visible application error indicates when the migration or database access is not configured.

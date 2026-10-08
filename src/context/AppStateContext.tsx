@@ -158,7 +158,7 @@ interface AppStateContextType {
   updateTask: (id: string, updates: Partial<EnterpriseTask>) => void;
   deleteTask: (id: string) => void;
   toggleTaskStatus: (id: string) => void;
-  notifyTaskAssignee: (task: EnterpriseTask) => Promise<void>;
+  notifyTaskAssignee: (task: EnterpriseTask) => Promise<{ emailSent: boolean; emailError?: string }>;
 
   // Actions - Users (CRUD)
   addUser: (user: Omit<EnterpriseUser, 'id'>) => EnterpriseUser;
@@ -2731,25 +2731,27 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return newTask;
   };
 
-  const notifyTaskAssignee = async (task: EnterpriseTask): Promise<void> => {
+  const notifyTaskAssignee = async (task: EnterpriseTask): Promise<{ emailSent: boolean; emailError?: string }> => {
     const recipientId = task.assignedToUserId;
     if (!recipientId || !/^[0-9a-f-]{36}$/i.test(recipientId)) {
       throw new Error('The selected assignee does not have a registered login account to notify.');
     }
-    const { data, error } = await supabase.rpc('create_task_assignment_notification', {
-      p_task: task,
-      p_notification_id: createRecordId('NOTIF'),
-      p_title: 'New task assigned to you',
-      p_message: `${user?.name || 'A team member'} assigned you "${task.title}".`,
-      p_link: `/tasks?task=${encodeURIComponent(task.id)}`,
-    }).single();
+    const { data, error } = await supabase.functions.invoke('task-assignment-notification', {
+      body: { task },
+    });
     if (error) throw new Error(`The task remains saved locally, but its assignee could not be notified: ${error.message}`);
-    const notification = toEnterpriseNotification(data);
+    const response = data as {
+      notification?: Record<string, unknown>;
+      emailSent?: boolean;
+      emailError?: string;
+    } | null;
+    const notification = toEnterpriseNotification(response?.notification);
     if (!notification) throw new Error('The notification was saved but returned invalid data.');
     setNotifications((previous) => [
       notification,
       ...previous.filter((existing) => existing.id !== notification.id),
     ]);
+    return { emailSent: response?.emailSent === true, emailError: response?.emailError };
   };
 
   const updateTask = (id: string, updates: Partial<EnterpriseTask>) => {
