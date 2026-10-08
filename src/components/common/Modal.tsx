@@ -2,7 +2,7 @@
  * MTN ENTERPRISE HUB - ACCESSIBLE MODAL DIALOG
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -24,6 +24,8 @@ export const Modal: React.FC<ModalProps> = ({
   maxWidth = 'lg',
   actions,
 }) => {
+  const titleId = useId();
+
   // Close on Escape key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,6 +36,16 @@ export const Modal: React.FC<ModalProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -55,31 +67,34 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain">
       {/* Backdrop */}
       <div
-        onClick={onClose}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
         className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity"
       />
 
       {/* Modal Dialog container */}
-      <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
+      <div className="flex min-h-full items-start justify-center p-2 text-center sm:items-center sm:p-4">
         <div
           role="dialog"
           aria-modal="true"
-          className={`relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 w-full ${getMaxWidthClass()} border border-slate-200`}
+          aria-labelledby={titleId}
+          className={`relative flex max-h-[calc(100dvh-1rem)] w-full transform flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-2xl transition-all sm:my-8 sm:max-h-[calc(100dvh-2rem)] ${getMaxWidthClass()}`}
         >
           {/* Header */}
-          <div className="flex items-start justify-between p-5 sm:p-6 border-b border-slate-100 bg-slate-50/50">
-            <div>
-              <h3 className="text-lg sm:text-xl font-bold text-slate-900 font-heading">
+          <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 bg-slate-50/50 p-4 sm:p-6">
+            <div className="min-w-0">
+              <h3 id={titleId} className="break-words text-lg font-bold text-slate-900 font-heading sm:text-xl">
                 {title}
               </h3>
-              {subtitle && <p className="text-xs sm:text-sm text-slate-500 mt-1">{subtitle}</p>}
+              {subtitle && <p className="mt-1 break-words text-xs text-slate-500 sm:text-sm">{subtitle}</p>}
             </div>
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
@@ -87,11 +102,11 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
 
           {/* Body */}
-          <div className="p-5 sm:p-6 max-h-[75vh] overflow-y-auto">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">{children}</div>
 
           {/* Footer Actions */}
           {actions && (
-            <div className="flex items-center justify-end gap-3 p-4 sm:p-6 border-t border-slate-100 bg-slate-50/50">
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50 p-3 sm:gap-3 sm:p-6 [&>*]:max-w-full">
               {actions}
             </div>
           )}

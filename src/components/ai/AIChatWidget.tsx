@@ -134,7 +134,7 @@ export const AIChatWidget: React.FC = () => {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 px-4 py-3 bg-slate-950 text-white rounded-full shadow-2xl border-2 border-mtn-yellow/60 hover:border-mtn-yellow hover:scale-105 transition-all duration-200 group"
+          className="relative z-40 mt-4 ml-auto flex min-h-11 items-center gap-2.5 rounded-full border-2 border-mtn-yellow/60 bg-slate-950 px-4 py-3 text-white shadow-2xl transition-all duration-200 group hover:border-mtn-yellow hover:scale-105 lg:fixed lg:bottom-6 lg:right-6 lg:ml-0 lg:mt-0"
           aria-label="Open AI Enterprise Assistant"
         >
           <div className="relative">
@@ -154,8 +154,8 @@ export const AIChatWidget: React.FC = () => {
           className={`fixed z-50 transition-all duration-300 shadow-2xl rounded-3xl bg-white border border-slate-300 flex flex-col overflow-hidden ${
             isExpanded
               ? 'inset-4 sm:inset-10'
-              : 'bottom-6 right-6 w-[92vw] sm:w-[420px] h-[580px] max-h-[85vh]'
-          }`}
+              : 'bottom-6 right-6 h-[580px] max-h-[85dvh] w-[92vw] sm:w-[420px]'
+          } max-[639px]:inset-x-2 max-[639px]:top-[max(env(safe-area-inset-top),0.5rem)] max-[639px]:bottom-[max(env(safe-area-inset-bottom),0.5rem)] max-[639px]:h-auto max-[639px]:max-h-none max-[639px]:w-auto max-[639px]:rounded-2xl`}
         >
           {/* Header */}
           <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-white/10 shrink-0">
@@ -177,15 +177,17 @@ export const AIChatWidget: React.FC = () => {
             <div className="flex items-center gap-1 text-slate-400">
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="p-1 rounded-lg hover:text-white hover:bg-white/10 transition-colors"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 hover:text-white"
                 title={isExpanded ? 'Collapse' : 'Expand'}
+                aria-label={isExpanded ? 'Collapse assistant' : 'Expand assistant'}
               >
                 {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               </button>
               <button
                 onClick={() => setIsOpen(false)}
-                className="p-1 rounded-lg hover:text-white hover:bg-white/10 transition-colors"
+                className="flex min-h-11 min-w-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 hover:text-white"
                 title="Close"
+                aria-label="Close assistant"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -221,7 +223,7 @@ export const AIChatWidget: React.FC = () => {
                   }`}
                 >
                   {/* Render **bold** markdown + strike reasoning line-break separator nicely */}
-                  <div className="whitespace-pre-line space-y-1 prose-sm prose-slate max-w-none">
+                  <div className="whitespace-pre-line [overflow-wrap:anywhere] space-y-1 prose-sm prose-slate max-w-none">
                     {msg.text.split('\n').map((line, idx) => {
                       if (line === '---') {
                         return <hr key={idx} className="my-2 border-slate-200" />;
@@ -274,13 +276,17 @@ export const AIChatWidget: React.FC = () => {
           </div>
 
           {/* Quick Prompts */}
-          <div className="px-3 py-2 bg-white border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+          <div
+            className="flex shrink-0 items-center gap-1.5 overflow-x-auto border-t border-slate-100 bg-white px-3 py-2 no-scrollbar"
+            role="region"
+            aria-label="Suggested assistant prompts"
+          >
             {QUICK_PROMPTS.map((prompt, i) => (
               <button
                 key={i}
                 onClick={() => handleSendMessage(prompt)}
                 disabled={isTyping}
-                className="whitespace-nowrap px-2.5 py-1 text-[11px] font-medium bg-slate-100 hover:bg-amber-100 text-slate-700 hover:text-slate-900 rounded-full transition-colors shrink-0 disabled:opacity-40"
+                className="min-h-11 whitespace-nowrap rounded-full bg-slate-100 px-3 py-2 text-[11px] font-medium text-slate-700 transition-colors shrink-0 hover:bg-amber-100 hover:text-slate-900 disabled:opacity-40"
               >
                 {prompt}
               </button>
@@ -293,20 +299,20 @@ export const AIChatWidget: React.FC = () => {
               e.preventDefault();
               handleSendMessage();
             }}
-            className="p-3 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0"
+            className="flex shrink-0 items-center gap-2 border-t border-slate-200 bg-white p-3"
           >
             <input
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               placeholder="Ask me anything..."
-              className="flex-1 px-3.5 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-mtn-yellow/50 focus:bg-white transition-all"
+              className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-100 px-3.5 py-2 text-sm text-slate-900 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-mtn-yellow/50"
               disabled={isTyping}
             />
             <button
               type="submit"
               disabled={!inputMessage.trim() || isTyping}
-              className="p-2.5 bg-mtn-yellow text-black rounded-xl hover:bg-mtn-yellow-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm shrink-0"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl bg-mtn-yellow p-2.5 text-black shadow-sm transition-all hover:bg-mtn-yellow-400 disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Send message"
             >
               <Send className="w-4 h-4" />

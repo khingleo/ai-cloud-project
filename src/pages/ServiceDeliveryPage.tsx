@@ -37,6 +37,9 @@ export const ServiceDeliveryPage: React.FC = () => {
     updateServiceDelivery,
     deleteServiceDelivery,
     updateDeliveryProgress,
+    opportunities,
+    approvals,
+    updateOpportunity,
     customers,
     products,
     getOrCreateCustomerByName,
@@ -114,11 +117,27 @@ export const ServiceDeliveryPage: React.FC = () => {
       return;
     }
 
+    const matchingOpportunity = opportunities.find((opportunity) =>
+      opportunity.title.trim().toLowerCase() === opportunityTitle.trim().toLowerCase() &&
+      opportunity.customerName.trim().toLowerCase() === customerNameInput.trim().toLowerCase()
+    );
+    if (matchingOpportunity) {
+      const approval = approvals.find((item) => item.opportunityId === matchingOpportunity.id);
+      if (matchingOpportunity.status !== 'Won' || approval?.status !== 'Approved') {
+        showToast('error', 'Approval Required', 'The linked opportunity must be won and fully approved before delivery can begin.');
+        return;
+      }
+      if (matchingOpportunity.serviceDeliveryId || serviceDeliveries.some((delivery) => delivery.opportunityId === matchingOpportunity.id)) {
+        showToast('error', 'Delivery Already Exists', 'A delivery project is already linked to this opportunity.');
+        return;
+      }
+    }
+
     const selProd = products.find((pr) => pr.id === productId) || products[0];
     const customer = getOrCreateCustomerByName(customerNameInput.trim(), 'Large Enterprise', 'General Corporate');
 
-    addServiceDelivery({
-      opportunityId: `OPP-DEL-${Date.now().toString().slice(-4)}`,
+    const delivery = addServiceDelivery({
+      opportunityId: matchingOpportunity?.id || `OPP-DEL-${Date.now().toString().slice(-4)}`,
       opportunityTitle: opportunityTitle.trim() || `${customer.name} — ${selProd?.name}`,
       customerId: customer.id,
       customerName: customer.name,
@@ -140,6 +159,9 @@ export const ServiceDeliveryPage: React.FC = () => {
       siteLocation: 'Greater Accra Hub, Ring Road Central',
       notes: 'Provisioned from Service Delivery workspace.',
     });
+    if (matchingOpportunity) {
+      updateOpportunity(matchingOpportunity.id, { serviceDeliveryId: delivery.id });
+    }
 
     showToast('success', 'Project Registered', `Service delivery initiated for ${customer.name}.`);
     setIsAddModalOpen(false);

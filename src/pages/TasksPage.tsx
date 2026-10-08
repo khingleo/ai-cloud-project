@@ -168,8 +168,14 @@ export const TasksPage: React.FC = () => {
     });
 
     setIsAddModalOpen(false);
-    void notifyTaskAssignee(task).then(() => {
-      showToast('success', 'Task Created', `Task assigned to ${task.assignedTo}; they have been notified.`);
+    void notifyTaskAssignee(task).then(({ emailSent, emailError }) => {
+      showToast(
+        emailSent ? 'success' : 'warning',
+        emailSent ? 'Task Created' : 'In-app notice sent; email unavailable',
+        emailSent
+          ? `Task assigned to ${task.assignedTo}; they have been notified in-app and by email.`
+          : `The in-app notice was sent to ${task.assignedTo}, but email could not be sent: ${emailError || 'Email notification failed.'}`,
+      );
     }).catch((error: unknown) => {
       showToast('error', 'Task Saved, Notification Failed', error instanceof Error ? error.message : 'The assignee could not be notified.');
     });
@@ -205,8 +211,14 @@ export const TasksPage: React.FC = () => {
     setEditingTask(null);
     if (wasReassigned) {
       const updatedTask = { ...editingTask, title: title.trim(), assignedTo, assignedToUserId, assignedToEmail };
-      void notifyTaskAssignee(updatedTask).then(() => {
-        showToast('success', 'Task Reassigned', `${assignedTo} has been notified.`);
+      void notifyTaskAssignee(updatedTask).then(({ emailSent, emailError }) => {
+        showToast(
+          emailSent ? 'success' : 'warning',
+          emailSent ? 'Task Reassigned' : 'In-app notice sent; email unavailable',
+          emailSent
+            ? `${assignedTo} has been notified in-app and by email.`
+            : `The in-app notice was sent to ${assignedTo}, but email could not be sent: ${emailError || 'Email notification failed.'}`,
+        );
       }).catch((error: unknown) => {
         showToast('error', 'Task Saved, Notification Failed', error instanceof Error ? error.message : 'The assignee could not be notified.');
       });

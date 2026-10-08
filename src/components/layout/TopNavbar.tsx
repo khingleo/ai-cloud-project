@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAppState } from '../../context/AppStateContext';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 interface TopNavbarProps {
   onMobileMenuClick: () => void;
@@ -33,6 +34,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
 }) => {
   const { notifications, markNotificationAsRead } = useAppState();
   const { user: authUser, tierLabel, logout, hasPermission, isAtLeast } = useAuth();
+  const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -77,18 +79,27 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
     return 'MTN Enterprise Hub';
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsProfileDropdownOpen(false);
-    logout();
-    navigate('/login');
+    try {
+      await logout();
+    } catch (error) {
+      showToast(
+        'error',
+        'Sign out failed',
+        error instanceof Error ? error.message : 'An unexpected error occurred.',
+      );
+    } finally {
+      navigate('/login');
+    }
   };
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm px-4 sm:px-6 py-3 transition-colors">
-        <div className="flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm px-3 sm:px-6 py-2.5 sm:py-3 transition-colors">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
           {/* Left: Mobile Toggle & Page Title */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={onMobileMenuClick}
               className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
@@ -108,11 +119,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </div>
 
           {/* Center: Global Search Bar Button */}
-          <div className="flex-1 max-w-lg mx-2 sm:mx-6">
+          <div className="flex-1 min-w-0 max-w-lg mx-1 sm:mx-6">
             <button
               type="button"
               onClick={onOpenGlobalSearch}
-              className="w-full flex items-center justify-between px-3.5 py-2 bg-slate-100/90 hover:bg-slate-200/70 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-500 transition-all group"
+              className="w-full flex items-center justify-between px-2.5 sm:px-3.5 py-2 bg-slate-100/90 hover:bg-slate-200/70 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-500 transition-all group"
             >
               <div className="flex items-center gap-2.5 truncate">
                 <Search className="w-4 h-4 text-slate-400 group-hover:text-mtn-yellow-600 shrink-0" />
@@ -125,11 +136,11 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
           </div>
 
           {/* Right: Actions, Notifications & Profile */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
             {/* Help Button */}
             <button
               onClick={() => setIsHelpModalOpen(true)}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              className="p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
               title="Architecture & Help Guide"
             >
               <HelpCircle className="w-5 h-5" />
@@ -142,7 +153,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
                   setIsNotifDropdownOpen(!isNotifDropdownOpen);
                   setIsProfileDropdownOpen(false);
                 }}
-                className="relative p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                className="relative p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                 aria-label="View notifications"
               >
                 <Bell className="w-5 h-5" />
@@ -152,7 +163,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               </button>
 
               {isNotifDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="fixed left-2 right-2 top-[4.25rem] max-h-[calc(100dvh-5rem)] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-96 sm:max-h-none sm:overflow-visible">
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
                     <h4 className="text-sm font-bold text-slate-900">Notifications</h4>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
@@ -211,7 +222,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
               </button>
 
               {isProfileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="fixed left-2 right-2 top-[4.25rem] max-h-[calc(100dvh-5rem)] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-64 sm:max-h-none sm:overflow-visible">
                   <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
                     <p className="text-sm font-bold text-slate-900">{authUser?.name}</p>
                     <p className="text-xs text-slate-500">{authUser?.email}</p>

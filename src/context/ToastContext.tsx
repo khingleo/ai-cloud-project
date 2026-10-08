@@ -50,12 +50,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       {/* Toast floating container */}
       <div 
         aria-live="polite" 
-        className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none px-4 sm:px-0"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-md flex-col gap-2 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:bottom-5 sm:right-5 sm:mx-0 sm:px-0 sm:pb-0"
       >
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl shadow-mtn-lg border transition-all duration-300 transform translate-y-0 animate-in fade-in slide-in-from-bottom-5 ${
+            className={`pointer-events-auto flex min-w-0 items-start gap-3 rounded-xl border p-4 shadow-mtn-lg transition-all duration-300 transform translate-y-0 animate-in fade-in slide-in-from-bottom-5 ${
               toast.type === 'success'
                 ? 'bg-emerald-950 text-white border-emerald-700'
                 : toast.type === 'warning'
@@ -77,7 +77,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             </div>
             <button
               onClick={() => removeToast(toast.id)}
-              className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+              className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-slate-300 transition-colors hover:text-white"
               aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />
