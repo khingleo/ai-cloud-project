@@ -82,8 +82,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({
   const handleLogout = async () => {
     setIsProfileDropdownOpen(false);
     try {
-      const error = await logout();
-      if (error) showToast('error', 'Sign out issue', error);
+      await logout();
     } catch (error) {
       showToast(
         'error',

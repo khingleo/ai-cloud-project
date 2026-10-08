@@ -28,7 +28,6 @@ import {
 } from 'lucide-react';
 import { useAppState } from '../../context/AppStateContext';
 import { useAuth } from '../../context/AuthContext';
-import { useToast } from '../../context/ToastContext';
 
 interface SidebarProps {
   /** Mobile overlay: is the drawer open? */
@@ -68,7 +67,6 @@ const SidebarContent: React.FC<{
 }> = ({ collapsed, onClose, onToggleCollapse, isDesktop }) => {
   const { approvals, notifications } = useAppState();
   const { isAtLeast, user, logout } = useAuth();
-  const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -213,8 +211,7 @@ const SidebarContent: React.FC<{
   ];
 
   const handleLogout = async () => {
-    const error = await logout();
-    if (error) showToast('error', 'Sign-out activity issue', error);
+    await logout();
     navigate('/login');
   };
 
