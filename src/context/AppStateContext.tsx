@@ -1,15 +1,15 @@
 /**
  * MTN ENTERPRISE HUB - GLOBAL APPLICATION STATE CONTEXT
  * 
- * Manages reactive state across all enterprise modules with LocalStorage persistence.
+ * Manages local reactive state and shared Supabase persistence for customer records.
  * Facilitates the complete end-to-end business journey:
  * Customer -> Lead -> Opportunity -> Presales -> Approvals -> Service Delivery -> Active Service
  * 
- * In production, this layer will be replaced by TanStack Query / Redux Toolkit / Supabase Realtime Client.
+ * Customer-linked records are synchronized by keyed rows; other modules remain locally cached.
  * All functions include Add, Edit (Update), and Delete operations for every enterprise module.
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type {
   Customer,
   CustomerSegment,
@@ -34,6 +34,8 @@ import type {
   InvoiceRecord,
   AuditLogEntry,
 } from '../types';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 interface AppStateContextType {
   // State Collections
@@ -57,6 +59,9 @@ interface AppStateContextType {
   billingAccounts: BillingAccount[];
   invoices: InvoiceRecord[];
   auditLogs: AuditLogEntry[];
+  databaseSyncError: string | null;
+  databaseSyncing: boolean;
+  databaseReady: boolean;
 
   // Helper for manual company entry
   getOrCreateCustomerByName: (companyName: string, segment?: CustomerSegment, industry?: string) => Customer;
@@ -167,6 +172,56 @@ const AppStateContext = createContext<AppStateContextType | undefined>(undefined
 
 const STORAGE_PREFIX = 'mtn_hub_';
 const PRODUCTS_SEED_KEY = 'mtn_hub_products_official_v5';
+const SHARED_COLLECTIONS = [
+  'customers',
+  'subscriptions',
+  'network_configs',
+  'billing_accounts',
+  'invoices',
+  'customer_prices',
+  'documents',
+  'audit_logs',
+] as const;
+
+type SharedCollection = typeof SHARED_COLLECTIONS[number];
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function serializeRecord(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(serializeRecord).join(',')}]`;
+  if (isObjectRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${serializeRecord(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function createRecordId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
+function isValidSharedRecord(collection: SharedCollection, value: unknown): value is Record<string, unknown> & { id: string } {
+  if (!isObjectRecord(value) || typeof value.id !== 'string' || !value.id) return false;
+  switch (collection) {
+    case 'customers':
+      return typeof value.name === 'string' && typeof value.segment === 'string';
+    case 'subscriptions':
+      return typeof value.customerId === 'string' && typeof value.productName === 'string';
+    case 'network_configs':
+      return typeof value.customerId === 'string' && typeof value.serviceName === 'string';
+    case 'billing_accounts':
+      return typeof value.customerId === 'string' && typeof value.customerName === 'string';
+    case 'invoices':
+      return typeof value.customerId === 'string' && typeof value.billingAccountId === 'string';
+    case 'customer_prices':
+      return typeof value.customerId === 'string' && typeof value.productName === 'string';
+    case 'documents':
+      return typeof value.name === 'string' && typeof value.type === 'string';
+    case 'audit_logs':
+      return typeof value.recordId === 'string' && typeof value.action === 'string';
+  }
+}
 
 // ================================================================
 // MTN GHANA ENTERPRISE PRODUCT CATALOGUE SEED DATA
@@ -1449,6 +1504,7 @@ function loadCustomers(): Customer[] {
 }
 
 export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
   // 1. Initialize State with localStorage fallback
   const [customers, setCustomers] = useState<Customer[]>(loadCustomers);
 
@@ -1548,6 +1604,82 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   const [currentUser] = useState<EnterpriseUser | null>(null);
+  const [databaseSyncError, setDatabaseSyncError] = useState<string | null>(null);
+  const [databaseSyncing, setDatabaseSyncing] = useState(false);
+  const [databaseReady, setDatabaseReady] = useState(false);
+  const hydrationUserRef = useRef<string | null>(null);
+  const writeQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingWritesRef = useRef(0);
+  const sharedBaselineRef = useRef<Record<SharedCollection, Map<string, string>>>({
+    customers: new Map(),
+    subscriptions: new Map(),
+    network_configs: new Map(),
+    billing_accounts: new Map(),
+    invoices: new Map(),
+    customer_prices: new Map(),
+    documents: new Map(),
+    audit_logs: new Map(),
+  });
+
+  const sharedRecords: Record<SharedCollection, unknown[]> = {
+    customers,
+    subscriptions,
+    network_configs: networkConfigs,
+    billing_accounts: billingAccounts,
+    invoices,
+    customer_prices: customerPrices,
+    documents,
+    audit_logs: auditLogs,
+  };
+  const sharedRecordsRef = useRef(sharedRecords);
+  sharedRecordsRef.current = sharedRecords;
+
+  const setSharedRecords = (collection: SharedCollection, records: Record<string, unknown>[]) => {
+    switch (collection) {
+      case 'customers': setCustomers(records as unknown as Customer[]); break;
+      case 'subscriptions': setSubscriptions(records as unknown as ServiceSubscription[]); break;
+      case 'network_configs': setNetworkConfigs(records as unknown as NetworkConfiguration[]); break;
+      case 'billing_accounts': setBillingAccounts(records as unknown as BillingAccount[]); break;
+      case 'invoices': setInvoices(records as unknown as InvoiceRecord[]); break;
+      case 'customer_prices': setCustomerPrices(records as unknown as CustomerSpecificPrice[]); break;
+      case 'documents': setDocuments(records as unknown as EnterpriseDocument[]); break;
+      case 'audit_logs': setAuditLogs(records as unknown as AuditLogEntry[]); break;
+    }
+  };
+
+  const enqueueSharedChanges = (collection: SharedCollection, upserts: Record<string, unknown>[], deletes: string[]) => {
+    if (upserts.length === 0 && deletes.length === 0) return;
+    pendingWritesRef.current += 1;
+    setDatabaseSyncing(true);
+    writeQueueRef.current = writeQueueRef.current.then(async () => {
+      if (upserts.length > 0) {
+        const { error } = await supabase.from('shared_records').upsert(
+          upserts.map((data) => ({
+            collection,
+            id: data.id as string,
+            data,
+            updated_at: new Date().toISOString(),
+          })),
+          { onConflict: 'collection,id' },
+        );
+        if (error) throw error;
+      }
+      if (deletes.length > 0) {
+        const { error } = await supabase.from('shared_records')
+          .delete()
+          .eq('collection', collection)
+          .in('id', deletes);
+        if (error) throw error;
+      }
+      setDatabaseSyncError(null);
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      setDatabaseSyncError(`Shared customer data could not be saved: ${message}`);
+    }).finally(() => {
+      pendingWritesRef.current -= 1;
+      setDatabaseSyncing(pendingWritesRef.current > 0);
+    });
+  };
 
   // 2. Persist to LocalStorage whenever state changes
   useEffect(() => {
@@ -1626,6 +1758,155 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem(STORAGE_PREFIX + 'notifications', JSON.stringify(notifications));
   }, [notifications]);
 
+  useEffect(() => {
+    let active = true;
+    hydrationUserRef.current = null;
+
+    if (!user?.id) {
+      setDatabaseReady(false);
+      setDatabaseSyncing(false);
+      return () => { active = false; };
+    }
+
+    setDatabaseReady(false);
+    setDatabaseSyncing(true);
+    setDatabaseSyncError(null);
+    void (async () => {
+      const data: { collection: string; id: string; data: unknown }[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data: page, error } = await supabase
+          .from('shared_records')
+          .select('collection,id,data')
+          .range(offset, offset + 999);
+        if (error) throw error;
+        data.push(...(page || []));
+        if (!page || page.length < 1000) break;
+      }
+      if (!active) return;
+
+      const remoteByCollection: Record<SharedCollection, Map<string, Record<string, unknown>>> = {
+        customers: new Map(),
+        subscriptions: new Map(),
+        network_configs: new Map(),
+        billing_accounts: new Map(),
+        invoices: new Map(),
+        customer_prices: new Map(),
+        documents: new Map(),
+        audit_logs: new Map(),
+      };
+      for (const row of data || []) {
+        if (!SHARED_COLLECTIONS.includes(row.collection as SharedCollection)) continue;
+        const collection = row.collection as SharedCollection;
+        if (!isValidSharedRecord(collection, row.data) || row.id !== row.data.id) continue;
+        remoteByCollection[collection].set(row.id, row.data);
+      }
+
+      const seededIds: Record<SharedCollection, Set<string>> = {
+        customers: new Set(LINKED_CUSTOMER_SEEDS.map((item) => item.id)),
+        subscriptions: new Set(INITIAL_SUBSCRIPTIONS_SEED.map((item) => item.id)),
+        network_configs: new Set(INITIAL_NETWORK_CONFIGS_SEED.map((item) => item.id)),
+        billing_accounts: new Set(INITIAL_BILLING_ACCOUNTS_SEED.map((item) => item.id)),
+        invoices: new Set(INITIAL_INVOICES_SEED.map((item) => item.id)),
+        customer_prices: new Set(INITIAL_CUSTOMER_PRICES_SEED.map((item) => item.id)),
+        documents: new Set(),
+        audit_logs: new Set(INITIAL_AUDIT_LOGS_SEED.map((item) => item.id)),
+      };
+      const localRecords = sharedRecordsRef.current;
+      const knownCustomerIds = new Set(remoteByCollection.customers.keys());
+      const localCustomers = localRecords.customers.filter((item): item is Record<string, unknown> & { id: string } =>
+        isValidSharedRecord('customers', item) && !seededIds.customers.has(item.id)
+          && !remoteByCollection.customers.has(item.id));
+      localCustomers.forEach((customer) => knownCustomerIds.add(customer.id));
+
+      for (const collection of SHARED_COLLECTIONS) {
+        const remote = remoteByCollection[collection];
+        const localOnly = localRecords[collection].filter((item): item is Record<string, unknown> & { id: string } => {
+          if (!isValidSharedRecord(collection, item) || seededIds[collection].has(item.id) || remote.has(item.id)) {
+            return false;
+          }
+          if (collection !== 'customers' && collection !== 'documents' && collection !== 'audit_logs') {
+            return typeof item.customerId === 'string' && knownCustomerIds.has(item.customerId);
+          }
+          if (collection === 'documents' && item.customerId) {
+            return typeof item.customerId === 'string' && knownCustomerIds.has(item.customerId);
+          }
+          return true;
+        });
+        const merged = [...remote.values(), ...localOnly];
+        sharedBaselineRef.current[collection] = new Map(
+          Array.from(remote.entries()).map(([id, record]) => [id, serializeRecord(record)]),
+        );
+        setSharedRecords(collection, merged);
+      }
+      hydrationUserRef.current = user.id;
+      setDatabaseReady(true);
+      setDatabaseSyncing(false);
+    })().catch((error: unknown) => {
+      if (!active) return;
+      const message = error instanceof Error ? error.message : String(error);
+      setDatabaseSyncError(`Shared customer data could not be loaded. Apply the Supabase shared-records migration and verify authenticated table access. ${message}`);
+      setDatabaseSyncing(false);
+    });
+
+    return () => { active = false; };
+  // The state values are read through this render's closure so local entries made while loading are merged.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || hydrationUserRef.current !== user.id) return;
+    for (const collection of SHARED_COLLECTIONS) {
+      const current = sharedRecords[collection].filter((item): item is Record<string, unknown> & { id: string } =>
+        isValidSharedRecord(collection, item));
+      const next = new Map(current.map((record) => [record.id, serializeRecord(record)]));
+      const baseline = sharedBaselineRef.current[collection];
+      const upserts = current.filter((record) => baseline.get(record.id) !== next.get(record.id));
+      const deletes = Array.from(baseline.keys()).filter((id) => !next.has(id));
+      sharedBaselineRef.current[collection] = next;
+      enqueueSharedChanges(collection, upserts, deletes);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, customers, subscriptions, networkConfigs, billingAccounts, invoices, customerPrices, documents, auditLogs]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const mergeRealtimeRecord = (collection: SharedCollection, id: string, record: Record<string, unknown> | null) => {
+      const baseline = sharedBaselineRef.current[collection];
+      if (record) baseline.set(id, serializeRecord(record));
+      else baseline.delete(id);
+      const merge = <T extends { id: string }>(previous: T[]): T[] => record
+        ? [record as unknown as T, ...previous.filter((item) => item.id !== id)]
+        : previous.filter((item) => item.id !== id);
+      switch (collection) {
+        case 'customers': setCustomers(merge); break;
+        case 'subscriptions': setSubscriptions(merge); break;
+        case 'network_configs': setNetworkConfigs(merge); break;
+        case 'billing_accounts': setBillingAccounts(merge); break;
+        case 'invoices': setInvoices(merge); break;
+        case 'customer_prices': setCustomerPrices(merge); break;
+        case 'documents': setDocuments(merge); break;
+        case 'audit_logs': setAuditLogs(merge); break;
+      }
+    };
+
+    const channel = supabase
+      .channel(`shared-customer-records-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_records' }, (payload) => {
+        const row = payload.eventType === 'DELETE' ? payload.old : payload.new;
+        if (!SHARED_COLLECTIONS.includes(row.collection as SharedCollection) || typeof row.id !== 'string') return;
+        const collection = row.collection as SharedCollection;
+        const record = payload.eventType === 'DELETE' ? null : row.data;
+        if (record && !isValidSharedRecord(collection, record)) return;
+        mergeRealtimeRecord(collection, row.id, record as Record<string, unknown> | null);
+      })
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          setDatabaseSyncError(`Live shared-record updates are unavailable: ${error?.message || status}`);
+        }
+      });
+    return () => { void supabase.removeChannel(channel); };
+  }, [user?.id]);
+
   // ==========================================
   // HELPER: MANUAL COMPANY NAME RESOLVER
   // ==========================================
@@ -1646,11 +1927,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
 
     // Create a new Customer record dynamically from manual entry
-    const existingNumIds = customers
-      .map(c => parseInt(c.id.replace(/\D/g, ''), 10))
-      .filter(n => !isNaN(n));
-    const nextNum = existingNumIds.length > 0 ? Math.max(...existingNumIds) + 1 : customers.length + 1;
-    const newId = `CUST-${String(nextNum).padStart(3, '0')}`;
+    const newId = createRecordId('CUST');
 
     const newCustomer: Customer = {
       id: newId,
@@ -1673,7 +1950,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       phone: '+233 30 200 0000',
       creditRating: 'A',
       primaryContact: {
-        id: `CNT-${Date.now()}`,
+        id: createRecordId('CNT'),
         customerId: newId,
         name: `Lead Representative (${trimmed})`,
         role: 'Commercial Contact',
@@ -1695,11 +1972,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // CUSTOMER ACTIONS (CRUD)
   // ==========================================
   const addCustomer = (customerData: Omit<Customer, 'id' | 'createdAt' | 'activeServicesCount' | 'totalValueGHS'> & { activeServicesCount?: number; totalValueGHS?: number }): Customer => {
-    const existingNumIds = customers
-      .map(c => parseInt(c.id.replace(/\D/g, ''), 10))
-      .filter(n => !isNaN(n));
-    const nextNum = existingNumIds.length > 0 ? Math.max(...existingNumIds) + 1 : customers.length + 1;
-    const newId = `CUST-${String(nextNum).padStart(3, '0')}`;
+    const newId = createRecordId('CUST');
 
     const newCustomer: Customer = {
       ...customerData,
@@ -1719,7 +1992,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Create system notification
     const newNotif: EnterpriseNotification = {
-      id: `NOTIF-${Date.now()}`,
+      id: createRecordId('NOTIF'),
       title: 'New Customer Registered',
       message: `${newCustomer.name} was added to the enterprise repository.`,
       category: 'System',
@@ -1731,16 +2004,15 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     // Create audit log entry
     const auditEntry: AuditLogEntry = {
-      id: `AUD-${Date.now()}`,
-      user: currentUser?.name || 'Enterprise Admin',
-      userRole: currentUser?.role || 'Key Account Manager',
+      id: createRecordId('AUD'),
+      user: user?.name || 'Authenticated user',
+      userRole: user?.accessTier || 'staff',
       action: 'CREATE',
       module: 'Customer Management',
       recordName: newCustomer.name,
       recordId: newCustomer.id,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
       details: `Created enterprise customer master record for ${newCustomer.name} (${newCustomer.segment}, ${newCustomer.industry}).`,
-      ipAddress: '197.251.18.42',
     };
     setAuditLogs((prev) => [auditEntry, ...prev]);
 
@@ -1748,19 +2020,27 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const updateCustomer = (id: string, updates: Partial<Customer>) => {
+    const newName = updates.name?.trim();
     setCustomers((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+    if (newName) {
+      setSubscriptions((prev) => prev.map((item) => item.customerId === id ? { ...item, customerName: newName } : item));
+      setNetworkConfigs((prev) => prev.map((item) => item.customerId === id ? { ...item, customerName: newName } : item));
+      setBillingAccounts((prev) => prev.map((item) => item.customerId === id ? { ...item, customerName: newName } : item));
+      setInvoices((prev) => prev.map((item) => item.customerId === id ? { ...item, customerName: newName } : item));
+      setCustomerPrices((prev) => prev.map((item) => item.customerId === id ? { ...item, customerName: newName } : item));
+      setDocuments((prev) => prev.map((item) => item.customerId === id ? { ...item, customerName: newName } : item));
+    }
 
     const auditEntry: AuditLogEntry = {
-      id: `AUD-${Date.now()}`,
-      user: currentUser?.name || 'Enterprise Admin',
-      userRole: currentUser?.role || 'Key Account Manager',
+      id: createRecordId('AUD'),
+      user: user?.name || 'Authenticated user',
+      userRole: user?.accessTier || 'staff',
       action: 'UPDATE',
       module: 'Customer Management',
       recordName: updates.name || id,
       recordId: id,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
       details: `Updated corporate master details for customer ID ${id}.`,
-      ipAddress: '197.251.18.42',
     };
     setAuditLogs((prev) => [auditEntry, ...prev]);
   };
@@ -1768,18 +2048,23 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const deleteCustomer = (id: string) => {
     const custToDelete = customers.find(c => c.id === id);
     setCustomers((prev) => prev.filter((c) => c.id !== id));
+    setSubscriptions((prev) => prev.filter((item) => item.customerId !== id));
+    setNetworkConfigs((prev) => prev.filter((item) => item.customerId !== id));
+    setBillingAccounts((prev) => prev.filter((item) => item.customerId !== id));
+    setInvoices((prev) => prev.filter((item) => item.customerId !== id));
+    setCustomerPrices((prev) => prev.filter((item) => item.customerId !== id));
+    setDocuments((prev) => prev.filter((item) => item.customerId !== id));
 
     const auditEntry: AuditLogEntry = {
-      id: `AUD-${Date.now()}`,
-      user: currentUser?.name || 'Enterprise Admin',
-      userRole: currentUser?.role || 'Key Account Manager',
+      id: createRecordId('AUD'),
+      user: user?.name || 'Authenticated user',
+      userRole: user?.accessTier || 'staff',
       action: 'DELETE',
       module: 'Customer Management',
       recordName: custToDelete?.name || id,
       recordId: id,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19),
       details: `Removed customer ${custToDelete?.name || id} from enterprise repository.`,
-      ipAddress: '197.251.18.42',
     };
     setAuditLogs((prev) => [auditEntry, ...prev]);
   };
@@ -1970,7 +2255,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // DOCUMENT ACTIONS (CRUD)
   // ==========================================
   const addDocument = (docData: Omit<EnterpriseDocument, 'id' | 'date'>): EnterpriseDocument => {
-    const newId = `DOC-2026-${String(documents.length + 1).padStart(3, '0')}`;
+    const newId = createRecordId('DOC');
     const newDoc: EnterpriseDocument = {
       ...docData,
       id: newId,
@@ -2146,7 +2431,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // SUBSCRIPTIONS (CRUD)
   // ==========================================
   const addSubscription = (subData: Omit<ServiceSubscription, 'id' | 'createdBy' | 'updatedAt'>): ServiceSubscription => {
-    const newId = `SUB-${Date.now().toString().slice(-6)}`;
+    const newId = createRecordId('SUB');
     const newSub: ServiceSubscription = {
       ...subData,
       id: newId,
@@ -2171,7 +2456,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // NETWORK CONFIGURATIONS (CRUD)
   // ==========================================
   const addNetworkConfig = (configData: Omit<NetworkConfiguration, 'id'>): NetworkConfiguration => {
-    const newId = `NET-CKT-${Date.now().toString().slice(-4)}`;
+    const newId = createRecordId('NET-CKT');
     const newConfig: NetworkConfiguration = {
       ...configData,
       id: newId,
@@ -2210,7 +2495,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const addCustomerPrice = (priceData: Omit<CustomerSpecificPrice, 'id'>): CustomerSpecificPrice => {
-    const newId = `PRC-CUST-${Date.now().toString().slice(-4)}`;
+    const newId = createRecordId('PRC-CUST');
     const newPrice: CustomerSpecificPrice = {
       ...priceData,
       id: newId,
@@ -2231,7 +2516,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // BILLING & INVOICES (CRUD)
   // ==========================================
   const addBillingAccount = (accountData: Omit<BillingAccount, 'id'>): BillingAccount => {
-    const newId = `DCLM-ACC-${Date.now().toString().slice(-5)}`;
+    const newId = createRecordId('DCLM-ACC');
     const newAccount: BillingAccount = {
       ...accountData,
       id: newId,
@@ -2246,10 +2531,11 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const deleteBillingAccount = (id: string) => {
     setBillingAccounts((prev) => prev.filter((b) => b.id !== id));
+    setInvoices((prev) => prev.filter((invoice) => invoice.billingAccountId !== id));
   };
 
   const addInvoice = (invoiceData: Omit<InvoiceRecord, 'id'>): InvoiceRecord => {
-    const newId = `INV-2026-${Date.now().toString().slice(-4)}`;
+    const newId = createRecordId('INV');
     const newInvoice: InvoiceRecord = {
       ...invoiceData,
       id: newId,
@@ -2272,7 +2558,7 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const addAuditLog = (logData: Omit<AuditLogEntry, 'id' | 'timestamp'>): AuditLogEntry => {
     const newEntry: AuditLogEntry = {
       ...logData,
-      id: `AUD-${Date.now()}`,
+      id: createRecordId('AUD'),
       timestamp: new Date().toISOString(),
     };
     setAuditLogs((prev) => [newEntry, ...prev]);
@@ -2358,6 +2644,9 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         billingAccounts,
         invoices,
         auditLogs,
+        databaseSyncError,
+        databaseSyncing,
+        databaseReady,
         tasks,
         notifications,
         users,
@@ -2445,6 +2734,12 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         markAllNotificationsAsRead,
       }}
     >
+      {databaseSyncError && (
+        <div role="alert" className="fixed top-3 right-3 z-[100] max-w-xl rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900 shadow-lg">
+          <p className="font-bold">Shared database synchronization failed</p>
+          <p className="mt-1 break-words">{databaseSyncError}</p>
+        </div>
+      )}
       {children}
     </AppStateContext.Provider>
   );

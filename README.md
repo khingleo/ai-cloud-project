@@ -45,6 +45,10 @@ Supabase Auth generates and verifies passwordless email OTPs for sign-in and sig
 
 For Vercel, add `NVIDIA_API_KEY` as a Secret environment variable. The Supabase URL and publishable/anon key are browser-safe values and may be configured as Config variables. Redeploy after changing environment variables.
 
-The first verified signup receives Staff access. Promote the first Super Admin from the Supabase SQL Editor after the account exists; do not grant elevated roles from frontend code. Business data remains in browser local storage.
+The first verified signup receives Staff access. Promote the first Super Admin from the Supabase SQL Editor after the account exists; do not grant elevated roles from frontend code.
+
+### Shared customer data
+
+Before using customer dossiers, apply `supabase/migrations/202610080001_shared_customer_records.sql` to the Supabase project (for example, paste and run it in the Supabase SQL Editor). It creates the shared JSONB record table, authenticated-user read/write policies, indexes, and Realtime publication entry. All authenticated users share the same customer records. Existing browser-local, user-added records are merged into the shared table on the first successful sign-in; built-in sample/seed records are not migrated. Local storage is only a cache. A visible application error indicates when the migration or database access is not configured.
 
 The earlier custom-auth migration may have created `app_users`, `app_auth_challenges`, and `app_auth_sessions`. The Supabase Auth flow does not use these tables; leave them untouched unless you separately plan a database cleanup.
