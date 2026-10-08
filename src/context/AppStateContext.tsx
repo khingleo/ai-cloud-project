@@ -1966,8 +1966,8 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         mergeRealtimeRecord(collection, row.id, record as Record<string, unknown> | null);
       })
       .subscribe((status, error) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setDatabaseSyncError(`Live shared-record updates are unavailable: ${error?.message || status}`);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn(`Live shared-record updates are temporarily unavailable (${status}):`, error?.message);
         }
       });
     return () => { void supabase.removeChannel(channel); };
@@ -1976,11 +1976,15 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
-    void supabase.from('user_notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100)
-      .then(({ data, error }) => {
+    let refreshing = false;
+    const refreshNotifications = async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        const { data, error } = await supabase.from('user_notifications')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
         if (!active) return;
         if (error) {
           setDatabaseSyncError(`Task notifications could not be loaded. Apply the task-assignment migration. ${error.message}`);
@@ -1993,7 +1997,22 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           return [...incoming, ...previous.filter((notification) =>
             (!notification.recipientId || notification.recipientId === user.id) && !incomingIds.has(notification.id))];
         });
-      });
+        setDatabaseSyncError((current) =>
+          current?.startsWith('Task notifications could not be loaded.') ? null : current);
+      } catch (error) {
+        if (active) {
+          const message = error instanceof Error ? error.message : String(error);
+          setDatabaseSyncError(`Task notifications could not be loaded: ${message}`);
+        }
+      } finally {
+        refreshing = false;
+      }
+    };
+
+    void refreshNotifications();
+    const refreshInterval = window.setInterval(() => {
+      void refreshNotifications();
+    }, 30_000);
 
     const channel = supabase
       .channel(`task-notifications-${user.id}`)
@@ -2013,12 +2032,14 @@ export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setNotifications((previous) => [incoming, ...previous.filter((notification) => notification.id !== incoming.id)]);
       })
       .subscribe((status, error) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setDatabaseSyncError(`Live task notifications are unavailable: ${error?.message || status}`);
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn(`Live task notifications are temporarily unavailable (${status}); polling remains active.`, error?.message);
         }
       });
+
     return () => {
       active = false;
+      window.clearInterval(refreshInterval);
       void supabase.removeChannel(channel);
     };
   }, [user?.id]);
